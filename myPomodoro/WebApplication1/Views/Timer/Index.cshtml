@@ -110,6 +110,10 @@
                         document.getElementById("completed-sessions").innerText = thirtyMinSessionCount;
                     }
 
+                    if(isWorkSession){
+                        recordSessions(true);
+                    }
+
                     // Switch session type (work <-> rest)
                     isWorkSession = !isWorkSession;
 
@@ -158,10 +162,10 @@
         });
     }
 
-    async function recordSessions() {
+    async function recordSessions(isAuto) {
         // Post the sessionLogs to our backend to store in CSV and email
         if (sessionLogs.length === 0) {
-            alert("No sessions to record.");
+            if(!isAuto) alert("No sessions to record.");
             return;
         }
 
@@ -175,15 +179,21 @@
             });
 
             if (response.ok) {
-                alert("Sessions recorded successfully, and email sent if configured.");
+                if (!isAuto) {
+                    alert("Sessions recorded successfully, and email sent if configured.");
+                }
                 // Clear the session logs after a successful record
                 sessionLogs = [];
             } else {
                 const err = await response.text();
-                alert("Error recording sessions: " + err);
+                if (!isAuto) {
+                    alert("Error recording sessions: " + err);
+                }
             }
         } catch (error) {
-            alert("Error sending request to server: " + error);
+            if (!isAuto) {
+                alert("Error sending request to server: " + error);
+            }
         }
     }
 </script>
