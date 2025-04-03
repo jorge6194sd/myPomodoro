@@ -4,3 +4,5 @@ bin/
 *.suo
 *.vscode/
 obj/
+*.AssemblyInfo.cs
+*.AssemblyInfoInputs.cache

@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Mail;
 using System.Text;
 using YourProject.Models;
+using System.Globalization;
 
 namespace YourProject.Controllers
 {
@@ -17,45 +18,44 @@ namespace YourProject.Controllers
             _config = config;
         }
 
-        // 1. Serve the main Timer page
+        // Serve the main Timer page
         public IActionResult Index()
         {
             return View();
         }
 
-        // 2. Record completed session to a CSV file and optionally send email
+        // POST: Record completed sessions to CSV, store FocusRating, etc.
         [HttpPost]
         public IActionResult RecordSession([FromBody] List<TimerSession> sessions)
         {
             if (sessions == null || !sessions.Any())
                 return BadRequest("No sessions provided.");
 
-            // 2a. Save to CSV file
             var csvPath = Path.Combine(_env.ContentRootPath, "App_Data", "TimerSessions.csv");
-
-            // Ensure the directory exists
             Directory.CreateDirectory(Path.GetDirectoryName(csvPath)!);
 
             var csvBuilder = new StringBuilder();
 
             // If file doesn't exist, add header row
-            if (!System.IO.File.Exists(csvPath))
+            bool fileExists = System.IO.File.Exists(csvPath);
+            if (!fileExists)
             {
-                csvBuilder.AppendLine("StartTime,EndTime,DurationMinutes,SessionType");
+                // New column: FocusRating
+                csvBuilder.AppendLine("StartTime,EndTime,DurationMinutes,SessionType,FocusRating");
             }
 
             // Append each session
             foreach (var session in sessions)
             {
                 csvBuilder.AppendLine(
-                    $"{session.StartTime},{session.EndTime},{session.DurationMinutes},{session.SessionType}"
+                    $"{session.StartTime},{session.EndTime},{session.DurationMinutes},{session.SessionType},{session.FocusRating}"
                 );
             }
 
             // Write to CSV
             System.IO.File.AppendAllText(csvPath, csvBuilder.ToString());
 
-            // 2b. Send email with CSV data
+            // Optional: send email with CSV data
             try
             {
                 var shouldSendEmail = _config.GetValue<bool>("EmailSettings:SendEmail");
@@ -66,11 +66,83 @@ namespace YourProject.Controllers
             }
             catch (Exception ex)
             {
-                // Log or handle the exception
                 return StatusCode(500, $"Failed to send email. Error: {ex.Message}");
             }
 
             return Ok("Session recorded successfully.");
+        }
+
+        // GET: Calculate today's volume vs. yesterday => improvement percentage
+        [HttpGet]
+        public IActionResult GetDailyImprovement()
+        {
+            var csvPath = Path.Combine(_env.ContentRootPath, "App_Data", "TimerSessions.csv");
+            if (!System.IO.File.Exists(csvPath))
+            {
+                // No data => 0% improvement
+                return Json(new { improvementPercent = 0, todayVolume = 0, yesterdayVolume = 0 });
+            }
+
+            var lines = System.IO.File.ReadAllLines(csvPath);
+            // skip header
+            var sessionData = lines.Skip(1).Where(l => !string.IsNullOrWhiteSpace(l));
+
+            // daily sums for "Work" sessions
+            var dailyWorkTotals = new Dictionary<string, double>();
+
+            foreach (var line in sessionData)
+            {
+                var parts = line.Split(',');
+                if (parts.Length < 5) continue;
+
+                // columns: StartTime, EndTime, DurationMinutes, SessionType, FocusRating
+                var durationStr = parts[2];
+                var sessionTypeStr = parts[3];
+                var endTimeStr = parts[1];
+
+                if (!string.Equals(sessionTypeStr, "Work", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                if (!double.TryParse(durationStr, out double durationMinutes))
+                    continue;
+
+                if (!DateTime.TryParse(endTimeStr, out DateTime endTime))
+                    continue;
+
+                var localDate = endTime.ToLocalTime().Date;
+                var dateKey = localDate.ToString("yyyy-MM-dd");
+
+                if (!dailyWorkTotals.ContainsKey(dateKey))
+                {
+                    dailyWorkTotals[dateKey] = 0;
+                }
+                dailyWorkTotals[dateKey] += durationMinutes;
+            }
+
+            var today = DateTime.Now.Date;
+            var todayKey = today.ToString("yyyy-MM-dd");
+            var yesterdayKey = today.AddDays(-1).ToString("yyyy-MM-dd");
+
+            dailyWorkTotals.TryGetValue(todayKey, out double todayTotal);
+            dailyWorkTotals.TryGetValue(yesterdayKey, out double yesterdayTotal);
+
+            double improvementPercent = 0;
+            if (yesterdayTotal > 0)
+            {
+                improvementPercent = ((todayTotal - yesterdayTotal) / yesterdayTotal) * 100.0;
+            }
+            else
+            {
+                // if no data for yesterday
+                improvementPercent = (todayTotal > 0) ? 100 : 0;
+            }
+
+            return Json(new
+            {
+                improvementPercent,
+                todayVolume = todayTotal,
+                yesterdayVolume = yesterdayTotal
+            });
         }
 
         private void SendEmail(string csvContent)
