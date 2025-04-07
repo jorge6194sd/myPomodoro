@@ -6,10 +6,11 @@
 <link rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" />
 
-<!-- Optional: Font Awesome for star icons -->
+<!-- Optional: Font Awesome for star icons (for 5-star rating) -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
 
-<div class="modal fade show d-block" tabindex="-1" role="dialog" style="background-color: rgba(0,0,0,0.8);" aria-modal="true">
+<div class="modal fade show d-block" tabindex="-1" role="dialog"
+     style="background-color: rgba(0,0,0,0.8);" aria-modal="true">
     <div class="modal-dialog modal-fullscreen" role="document">
         <div class="modal-content text-center" style="background-color: #f7f7f7;">
 
@@ -28,14 +29,21 @@
                         <!-- Timer Display -->
                         <div id="timer-display" style="font-size: 5rem; margin-bottom: 1rem;">00:00</div>
 
+                        <!-- NEW: Label to indicate current session type -->
+                        <div id="session-label" style="font-size: 1.25rem; margin-bottom: 1rem;">
+                            <!-- Will dynamically show "Work Session" or "Break Session" -->
+                        </div>
+
                         <!-- Controls for session durations -->
                         <div class="mb-3">
                             <label for="workDuration" class="form-label">Work Session (minutes):</label>
-                            <input type="number" id="workDuration" class="form-control" style="width:200px; margin: 0 auto;" value="30" />
+                            <input type="number" id="workDuration" class="form-control"
+                                   style="width:200px; margin: 0 auto;" value="30" />
                         </div>
                         <div class="mb-3">
                             <label for="restDuration" class="form-label">Rest Session (minutes):</label>
-                            <input type="number" id="restDuration" class="form-control" style="width:200px; margin: 0 auto;" value="5" />
+                            <input type="number" id="restDuration" class="form-control"
+                                   style="width:200px; margin: 0 auto;" value="5" />
                         </div>
 
                         <!-- Buttons -->
@@ -88,22 +96,23 @@
             </div> <!-- [2] end .modal-body -->
             <!-- [6] Modal Footer -->
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" onclick="window.location.href='/'">Close</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"
+                        onclick="window.location.href='/'">
+                    Close
+                </button>
             </div> <!-- [6] end .modal-footer -->
 
         </div> <!-- end .modal-content -->
     </div> <!-- end .modal-dialog -->
 </div> <!-- end .modal.fade -->
 
-
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
-
 <script>
     let timerInterval = null;
     let totalSeconds = 0;
     let isPaused = false;
 
-    // We begin with a work session
+    // We begin with a "Work" session
     let isWorkSession = true;
     let workDuration = 30;
     let restDuration = 5;
@@ -117,12 +126,13 @@
     // Keep a "pendingFocusRating" for the star rating selected
     let pendingFocusRating = 0;
 
-    // Attach event listeners
+    // Grab references
+    const sessionLabelEl = document.getElementById("session-label");
+
     document.getElementById("start-btn").addEventListener("click", startTimer);
     document.getElementById("pause-btn").addEventListener("click", pauseTimer);
     document.getElementById("reset-btn").addEventListener("click", resetTimer);
     document.getElementById("record-btn").addEventListener("click", () => recordSessions(false));
-
     document.getElementById("saveRatingBtn").addEventListener("click", saveFocusRating);
 
     // Star click events
@@ -135,8 +145,9 @@
         });
     });
 
-    // On page load, fetch daily improvement data
-    fetchVolumeIncrease();
+    // On page load
+    updateSessionLabel();        // Show "Work Session" or "Break Session"
+    fetchVolumeIncrease();       // Get today's improvement at startup
 
     function startTimer() {
         // If paused, just resume
@@ -154,7 +165,6 @@
             clearInterval(timerInterval);
         }
 
-        // Determine how long this session is
         totalSeconds = (isWorkSession ? workDuration : restDuration) * 60;
         updateDisplay(totalSeconds);
 
@@ -175,22 +185,26 @@
                         document.getElementById("completed-sessions").innerText = thirtyMinSessionCount;
                     }
 
-                    // If we just ended a work session, auto-start rest
-                    // If we just ended a rest session, we do NOT auto-start the next work session
+                    // If we just ended a work session => auto-start rest
+                    // If we just ended a rest session => user must press Start again
                     if (isWorkSession) {
-                        // We ended a work session => now we switch to rest
-                        isWorkSession = false;
-                        pendingFocusRating = 0; // reset rating for the next session
-                        updateStarDisplay(0);
+                        // 1) Attempt an auto-record to get real-time improvement
+                        recordSessions(true);
 
-                        // Immediately start the rest timer
+                        // 2) Switch to rest
+                        isWorkSession = false;
+                        pendingFocusRating = 0;
+                        updateStarDisplay(0);
+                        updateSessionLabel();
+
+                        // 3) Immediately start rest
                         startTimer();
                     } else {
-                        // We ended a rest session => switch to work,
-                        // but DO NOT auto-start. Force user to press Start again.
+                        // We ended a rest session => revert to work session, but do not auto-start
                         isWorkSession = true;
                         pendingFocusRating = 0;
                         updateStarDisplay(0);
+                        updateSessionLabel();
                     }
                 }
             }
@@ -210,6 +224,7 @@
         updateDisplay(totalSeconds);
         pendingFocusRating = 0;
         updateStarDisplay(0);
+        updateSessionLabel();
     }
 
     function updateDisplay(seconds) {
@@ -218,6 +233,11 @@
         const minStr = (min < 10 ? "0" : "") + min;
         const secStr = (sec < 10 ? "0" : "") + sec;
         document.getElementById("timer-display").textContent = `${minStr}:${secStr}`;
+    }
+
+    function updateSessionLabel() {
+        // Show "Work Session" or "Break Session" for clarity
+        sessionLabelEl.textContent = isWorkSession ? "Work Session" : "Break Session";
     }
 
     function logSession(isWork, duration, focusRating) {
@@ -258,11 +278,13 @@
                 if (!isAuto) {
                     alert("Sessions recorded successfully. Email sent if configured.");
                 }
-                // After recording, fetch today's improvement again
-                fetchVolumeIncrease();
 
                 // Clear logs
                 sessionLogs = [];
+
+                // Now fetch the updated daily improvement in real-time
+                await fetchVolumeIncrease();
+
             } else {
                 const err = await response.text();
                 if (!isAuto) {
@@ -296,6 +318,7 @@
             const resp = await fetch("/Timer/GetDailyImprovement");
             if (!resp.ok) return;
             const data = await resp.json();
+            // data.improvementPercent => real-time difference (today vs last day worked)
             document.getElementById("improvement-percentage").textContent =
                 `${data.improvementPercent.toFixed(1)}%`;
         } catch (err) {

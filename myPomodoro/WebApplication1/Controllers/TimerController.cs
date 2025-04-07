@@ -40,7 +40,6 @@ namespace YourProject.Controllers
             bool fileExists = System.IO.File.Exists(csvPath);
             if (!fileExists)
             {
-                // New column: FocusRating
                 csvBuilder.AppendLine("StartTime,EndTime,DurationMinutes,SessionType,FocusRating");
             }
 
@@ -72,7 +71,7 @@ namespace YourProject.Controllers
             return Ok("Session recorded successfully.");
         }
 
-        // GET: Calculate today's volume vs. yesterday => improvement percentage
+        // GET: Calculate today's volume vs the LAST prior day with data
         [HttpGet]
         public IActionResult GetDailyImprovement()
         {
@@ -80,7 +79,7 @@ namespace YourProject.Controllers
             if (!System.IO.File.Exists(csvPath))
             {
                 // No data => 0% improvement
-                return Json(new { improvementPercent = 0, todayVolume = 0, yesterdayVolume = 0 });
+                return Json(new { improvementPercent = 0, todayVolume = 0, previousDayVolume = 0 });
             }
 
             var lines = System.IO.File.ReadAllLines(csvPath);
@@ -88,18 +87,19 @@ namespace YourProject.Controllers
             var sessionData = lines.Skip(1).Where(l => !string.IsNullOrWhiteSpace(l));
 
             // daily sums for "Work" sessions
-            var dailyWorkTotals = new Dictionary<string, double>();
+            var dailyWorkTotals = new Dictionary<DateTime, double>();
 
             foreach (var line in sessionData)
             {
                 var parts = line.Split(',');
                 if (parts.Length < 5) continue;
 
-                // columns: StartTime, EndTime, DurationMinutes, SessionType, FocusRating
+                // columns: StartTime,EndTime,DurationMinutes,SessionType,FocusRating
                 var durationStr = parts[2];
                 var sessionTypeStr = parts[3];
                 var endTimeStr = parts[1];
 
+                // Only add to daily volume if it's a "Work" session
                 if (!string.Equals(sessionTypeStr, "Work", StringComparison.OrdinalIgnoreCase))
                     continue;
 
@@ -109,31 +109,41 @@ namespace YourProject.Controllers
                 if (!DateTime.TryParse(endTimeStr, out DateTime endTime))
                     continue;
 
+                // We'll consider local date from endTime
                 var localDate = endTime.ToLocalTime().Date;
-                var dateKey = localDate.ToString("yyyy-MM-dd");
 
-                if (!dailyWorkTotals.ContainsKey(dateKey))
+                if (!dailyWorkTotals.ContainsKey(localDate))
                 {
-                    dailyWorkTotals[dateKey] = 0;
+                    dailyWorkTotals[localDate] = 0;
                 }
-                dailyWorkTotals[dateKey] += durationMinutes;
+                dailyWorkTotals[localDate] += durationMinutes;
             }
 
             var today = DateTime.Now.Date;
-            var todayKey = today.ToString("yyyy-MM-dd");
-            var yesterdayKey = today.AddDays(-1).ToString("yyyy-MM-dd");
 
-            dailyWorkTotals.TryGetValue(todayKey, out double todayTotal);
-            dailyWorkTotals.TryGetValue(yesterdayKey, out double yesterdayTotal);
+            // Sum for "today" if it exists
+            dailyWorkTotals.TryGetValue(today, out double todayTotal);
+
+            // We want the "most recent" day BEFORE "today" that we have data for
+            var previousDay = dailyWorkTotals.Keys
+                .Where(d => d < today)
+                .OrderByDescending(d => d) // largest date < today
+                .FirstOrDefault();         // or default(DateTime) if none
+
+            double previousDayTotal = 0;
+            if (previousDay != default(DateTime))
+            {
+                previousDayTotal = dailyWorkTotals[previousDay];
+            }
 
             double improvementPercent = 0;
-            if (yesterdayTotal > 0)
+            if (previousDayTotal > 0)
             {
-                improvementPercent = ((todayTotal - yesterdayTotal) / yesterdayTotal) * 100.0;
+                improvementPercent = ((todayTotal - previousDayTotal) / previousDayTotal) * 100.0;
             }
             else
             {
-                // if no data for yesterday
+                // If there's no prior day with data, or prior day total was 0
                 improvementPercent = (todayTotal > 0) ? 100 : 0;
             }
 
@@ -141,7 +151,7 @@ namespace YourProject.Controllers
             {
                 improvementPercent,
                 todayVolume = todayTotal,
-                yesterdayVolume = yesterdayTotal
+                previousDayVolume = previousDayTotal
             });
         }
 
