@@ -29,9 +29,9 @@
                         <!-- Timer Display -->
                         <div id="timer-display" style="font-size: 5rem; margin-bottom: 1rem;">00:00</div>
 
-                        <!-- NEW: Label to indicate current session type -->
+                        <!-- Session Label (Work / Break) -->
                         <div id="session-label" style="font-size: 1.25rem; margin-bottom: 1rem;">
-                            <!-- Will dynamically show "Work Session" or "Break Session" -->
+                            <!-- Dynamically shows "Work Session" or "Break Session" -->
                         </div>
 
                         <!-- Controls for session durations -->
@@ -46,10 +46,21 @@
                                    style="width:200px; margin: 0 auto;" value="5" />
                         </div>
 
+                        <!-- NEW: Category Toggle (dropdown) for "Job" or "Personal" -->
+                        <div class="mb-3">
+                            <label for="taskCategory" class="form-label">Select Task Category:</label>
+                            <select id="taskCategory" class="form-select" style="width:200px; margin:0 auto;">
+                                <option value="">-- Choose One --</option>
+                                <option value="Job">Job</option>
+                                <option value="Personal">Personal</option>
+                            </select>
+                        </div>
+
                         <!-- Buttons -->
                         <div class="d-flex flex-row gap-3">
-                            <button id="start-btn" class="btn btn-success btn-lg">Start</button>
+                            <button id="start-btn" class="btn btn-success btn-lg" disabled>Start</button>
                             <button id="pause-btn" class="btn btn-warning btn-lg">Pause</button>
+                            <button id="stop-and-record-btn" class="btn btn-info btn-lg">Stop &amp; Record</button>
                             <button id="reset-btn" class="btn btn-danger btn-lg">Reset</button>
                             <button id="record-btn" class="btn btn-primary btn-lg">Record</button>
                         </div>
@@ -126,17 +137,40 @@
     // Keep a "pendingFocusRating" for the star rating selected
     let pendingFocusRating = 0;
 
+    // Category for the "Work" session: "Job" or "Personal" (empty by default)
+    let selectedCategory = "";
+
     // Grab references
     const sessionLabelEl = document.getElementById("session-label");
+    const taskCategoryEl = document.getElementById("taskCategory");
+    const startBtn = document.getElementById("start-btn");
+    const pauseBtn = document.getElementById("pause-btn");
+    const stopRecordBtn = document.getElementById("stop-and-record-btn");
+    const resetBtn = document.getElementById("reset-btn");
+    const recordBtn = document.getElementById("record-btn");
+    const saveRatingBtn = document.getElementById("saveRatingBtn");
 
-    document.getElementById("start-btn").addEventListener("click", startTimer);
-    document.getElementById("pause-btn").addEventListener("click", pauseTimer);
-    document.getElementById("reset-btn").addEventListener("click", resetTimer);
-    document.getElementById("record-btn").addEventListener("click", () => recordSessions(false));
-    document.getElementById("saveRatingBtn").addEventListener("click", saveFocusRating);
+    const stars = document.querySelectorAll("#starRating i");
+
+    // On page load
+    updateSessionLabel();  // Show "Work Session" or "Break Session"
+    fetchVolumeIncrease(); // Get today's improvement at startup
+    checkCategorySelected(); // initial check
+
+    // === Event Listeners ===
+    taskCategoryEl.addEventListener("change", () => {
+        selectedCategory = taskCategoryEl.value;
+        checkCategorySelected();
+    });
+
+    startBtn.addEventListener("click", startTimer);
+    pauseBtn.addEventListener("click", pauseTimer);
+    stopRecordBtn.addEventListener("click", stopAndRecord);
+    resetBtn.addEventListener("click", resetTimer);
+    recordBtn.addEventListener("click", () => recordSessions(false));
+    saveRatingBtn.addEventListener("click", saveFocusRating);
 
     // Star click events
-    const stars = document.querySelectorAll("#starRating i");
     stars.forEach(star => {
         star.addEventListener("click", () => {
             const val = parseInt(star.getAttribute("data-value"));
@@ -145,18 +179,17 @@
         });
     });
 
-    // On page load
-    updateSessionLabel();        // Show "Work Session" or "Break Session"
-    fetchVolumeIncrease();       // Get today's improvement at startup
-
+    // ==========================
+    //   TIMER CORE LOGIC
+    // ==========================
     function startTimer() {
-        // If paused, just resume
+        // if paused, just resume
         if (isPaused) {
             isPaused = false;
             return;
         }
 
-        // Otherwise, we're starting fresh
+        // Otherwise, we start fresh
         workDuration = parseInt(document.getElementById("workDuration").value);
         restDuration = parseInt(document.getElementById("restDuration").value);
 
@@ -186,7 +219,7 @@
                     }
 
                     // If we just ended a work session => auto-start rest
-                    // If we just ended a rest session => user must press Start again
+                    // If we just ended a rest => user must press Start again
                     if (isWorkSession) {
                         // 1) Attempt an auto-record to get real-time improvement
                         recordSessions(true);
@@ -200,7 +233,7 @@
                         // 3) Immediately start rest
                         startTimer();
                     } else {
-                        // We ended a rest session => revert to work session, but do not auto-start
+                        // We ended a rest session => revert to work session
                         isWorkSession = true;
                         pendingFocusRating = 0;
                         updateStarDisplay(0);
@@ -215,6 +248,56 @@
         isPaused = true;
     }
 
+    /**
+     * "Stop & Record" => stops the current Work session early,
+     * logs how long you actually worked, records it, then resets timer for next session.
+     */
+    function stopAndRecord() {
+        // Only relevant if we are in a Work session and timer is running
+        if (!isWorkSession || !timerInterval) {
+            alert("Stop & Record only applies during a Work session in progress.");
+            return;
+        }
+
+        // 1) Clear the interval
+        clearInterval(timerInterval);
+        timerInterval = null;
+
+        // 2) Calculate how many minutes we actually spent
+        // totalSeconds was the time left. So "elapsed" = (initial minutes * 60) - totalSeconds
+        let fullWorkSeconds = workDuration * 60;
+        let elapsedSeconds = fullWorkSeconds - totalSeconds;
+        let elapsedMinutes = elapsedSeconds / 60;
+
+        // Convert to nearest integer or do partial decimals
+        let actualDuration = Math.round(elapsedMinutes);  // or keep a decimal if you prefer
+
+        // 3) logSession with that partial duration
+        logSession(true, actualDuration, pendingFocusRating);
+
+        // If it was a 30-min session originally
+        if (workDuration === 30) {
+            thirtyMinSessionCount++;
+            document.getElementById("completed-sessions").innerText = thirtyMinSessionCount;
+        }
+
+        // Now we do a record call so we update real-time improvement
+        recordSessions(true);
+
+        // 4) We remain in the same mode (Work?), or switch to rest?
+        // Per your use-case, let's remain in "Work mode" but 0 timer
+        // user can choose to do a rest or start again
+        totalSeconds = 0;
+        updateDisplay(totalSeconds);
+        isPaused = false;   // not paused, just stopped
+        isWorkSession = true;
+        pendingFocusRating = 0;
+        updateStarDisplay(0);
+        updateSessionLabel();
+
+        // 5) The user can choose "Start" if they want a new session, or "Reset" etc.
+    }
+
     function resetTimer() {
         clearInterval(timerInterval);
         timerInterval = null;
@@ -227,30 +310,29 @@
         updateSessionLabel();
     }
 
-    function updateDisplay(seconds) {
-        let min = Math.floor(seconds / 60);
-        let sec = seconds % 60;
-        const minStr = (min < 10 ? "0" : "") + min;
-        const secStr = (sec < 10 ? "0" : "") + sec;
-        document.getElementById("timer-display").textContent = `${minStr}:${secStr}`;
-    }
-
-    function updateSessionLabel() {
-        // Show "Work Session" or "Break Session" for clarity
-        sessionLabelEl.textContent = isWorkSession ? "Work Session" : "Break Session";
-    }
-
+    // ==========================
+    //   LOGGING & RECORDING
+    // ==========================
     function logSession(isWork, duration, focusRating) {
         const endTime = new Date();
         const msDuration = duration * 60000;
         const startTime = new Date(endTime - msDuration);
+
+        // We'll store the "SessionCategory" only if it's "Work"
+        // Because a Rest session won't have "Job"/"Personal"?
+        // Adjust logic if you want categories for rest too.
+        let category = "";
+        if (isWork) {
+            category = selectedCategory;
+        }
 
         sessionLogs.push({
             startTime: startTime.toISOString(),
             endTime: endTime.toISOString(),
             durationMinutes: duration,
             sessionType: isWork ? "Work" : "Rest",
-            focusRating: focusRating
+            focusRating: focusRating,
+            sessionCategory: category
         });
 
         // If it's a work session and there's a rating, display it
@@ -282,7 +364,7 @@
                 // Clear logs
                 sessionLogs = [];
 
-                // Now fetch the updated daily improvement in real-time
+                // Update daily improvement in real-time
                 await fetchVolumeIncrease();
 
             } else {
@@ -298,6 +380,9 @@
         }
     }
 
+    // ==========================
+    //   CATEGORY & RATING
+    // ==========================
     function saveFocusRating() {
         if (pendingFocusRating > 0) {
             document.getElementById("self-intensity").textContent = `${pendingFocusRating} / 5 (pending)`;
@@ -312,13 +397,32 @@
         });
     }
 
-    // Fetch daily improvement from server & update UI
+    function checkCategorySelected() {
+        // Only enable the Start button if:
+        // 1) We are in a Work session
+        // 2) A category is chosen (Job or Personal)
+        // If it's a Break session, user can always start it.
+        // Adjust logic if you'd prefer to require category for break as well.
+        if (isWorkSession && !selectedCategory) {
+            startBtn.disabled = true;
+        } else {
+            startBtn.disabled = false;
+        }
+    }
+
+    // ==========================
+    //   UTILS
+    // ==========================
+    function updateSessionLabel() {
+        sessionLabelEl.textContent = isWorkSession ? "Work Session" : "Break Session";
+        checkCategorySelected();
+    }
+
     async function fetchVolumeIncrease() {
         try {
             const resp = await fetch("/Timer/GetDailyImprovement");
             if (!resp.ok) return;
             const data = await resp.json();
-            // data.improvementPercent => real-time difference (today vs last day worked)
             document.getElementById("improvement-percentage").textContent =
                 `${data.improvementPercent.toFixed(1)}%`;
         } catch (err) {

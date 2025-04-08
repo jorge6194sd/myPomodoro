@@ -24,7 +24,7 @@ namespace YourProject.Controllers
             return View();
         }
 
-        // POST: Record completed sessions to CSV, store FocusRating, etc.
+        // POST: Record completed sessions to CSV, now including SessionCategory
         [HttpPost]
         public IActionResult RecordSession([FromBody] List<TimerSession> sessions)
         {
@@ -36,18 +36,20 @@ namespace YourProject.Controllers
 
             var csvBuilder = new StringBuilder();
 
-            // If file doesn't exist, add header row
+            // If file doesn't exist, add header row (now with SessionCategory)
             bool fileExists = System.IO.File.Exists(csvPath);
             if (!fileExists)
             {
-                csvBuilder.AppendLine("StartTime,EndTime,DurationMinutes,SessionType,FocusRating");
+                csvBuilder.AppendLine("StartTime,EndTime,DurationMinutes,SessionType,FocusRating,SessionCategory");
             }
 
             // Append each session
             foreach (var session in sessions)
             {
+                // If session.SessionCategory is null, make it empty
+                var cat = session.SessionCategory ?? "";
                 csvBuilder.AppendLine(
-                    $"{session.StartTime},{session.EndTime},{session.DurationMinutes},{session.SessionType},{session.FocusRating}"
+                    $"{session.StartTime},{session.EndTime},{session.DurationMinutes},{session.SessionType},{session.FocusRating},{cat}"
                 );
             }
 
@@ -92,9 +94,9 @@ namespace YourProject.Controllers
             foreach (var line in sessionData)
             {
                 var parts = line.Split(',');
-                if (parts.Length < 5) continue;
+                if (parts.Length < 6) continue;
 
-                // columns: StartTime,EndTime,DurationMinutes,SessionType,FocusRating
+                // columns: StartTime,EndTime,DurationMinutes,SessionType,FocusRating,SessionCategory
                 var durationStr = parts[2];
                 var sessionTypeStr = parts[3];
                 var endTimeStr = parts[1];
@@ -127,8 +129,8 @@ namespace YourProject.Controllers
             // We want the "most recent" day BEFORE "today" that we have data for
             var previousDay = dailyWorkTotals.Keys
                 .Where(d => d < today)
-                .OrderByDescending(d => d) // largest date < today
-                .FirstOrDefault();         // or default(DateTime) if none
+                .OrderByDescending(d => d)
+                .FirstOrDefault();
 
             double previousDayTotal = 0;
             if (previousDay != default(DateTime))
