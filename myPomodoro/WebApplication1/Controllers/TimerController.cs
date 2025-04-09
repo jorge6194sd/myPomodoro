@@ -24,45 +24,39 @@ namespace YourProject.Controllers
             return View();
         }
 
-        // POST: Record completed sessions to CSV, including SessionCategory
+        // POST: Record completed sessions to CSV, with SessionCategory included
         [HttpPost]
         public IActionResult RecordSession([FromBody] List<TimerSession> sessions)
         {
             if (sessions == null || !sessions.Any())
                 return BadRequest("No sessions provided.");
 
-            // 1) Build path to CSV in App_Data
             var csvPath = Path.Combine(_env.ContentRootPath, "App_Data", "TimerSessions.csv");
             Directory.CreateDirectory(Path.GetDirectoryName(csvPath)!);
 
             var csvBuilder = new StringBuilder();
 
-            // 2) If file doesn't exist, add a header row
+            // If file doesn't exist, add header row
             bool fileExists = System.IO.File.Exists(csvPath);
             if (!fileExists)
             {
-                // 6 columns now:
-                // StartTime, EndTime, DurationMinutes, SessionType, FocusRating, SessionCategory
+                // 6 columns: StartTime,EndTime,DurationMinutes,SessionType,FocusRating,SessionCategory
                 csvBuilder.AppendLine("StartTime,EndTime,DurationMinutes,SessionType,FocusRating,SessionCategory");
             }
 
-            // 3) Append each session as a new CSV line
+            // Append each session
             foreach (var session in sessions)
             {
-                // If session.SessionCategory is null, default to empty
                 var cat = session.SessionCategory ?? "";
-
-                // Build one CSV line
                 csvBuilder.AppendLine(
                     $"{session.StartTime},{session.EndTime},{session.DurationMinutes}," +
                     $"{session.SessionType},{session.FocusRating},{cat}"
                 );
             }
 
-            // 4) Append to the CSV file
             System.IO.File.AppendAllText(csvPath, csvBuilder.ToString());
 
-            // 5) Optional: send email if configured
+            // Optional: send email
             try
             {
                 var shouldSendEmail = _config.GetValue<bool>("EmailSettings:SendEmail");
@@ -79,36 +73,52 @@ namespace YourProject.Controllers
             return Ok("Session recorded successfully.");
         }
 
-        // GET: Calculate today's volume vs the LAST prior day with data
+        // GET: Calculate volumes & improvement (all Work, Job-only, Personal-only)
         [HttpGet]
         public IActionResult GetDailyImprovement()
         {
             var csvPath = Path.Combine(_env.ContentRootPath, "App_Data", "TimerSessions.csv");
             if (!System.IO.File.Exists(csvPath))
             {
-                // No data => 0% improvement
-                return Json(new { improvementPercent = 0, todayVolume = 0, previousDayVolume = 0 });
+                // No data => all 0
+                return Json(new
+                {
+                    improvementPercent = 0,
+                    todayVolume = 0,
+                    previousDayVolume = 0,
+                    todayJobVolume = 0,
+                    previousDayJobVolume = 0,
+                    todayPersonalVolume = 0,
+                    previousDayPersonalVolume = 0
+                });
             }
 
             var lines = System.IO.File.ReadAllLines(csvPath);
-            // Skip the header
             var sessionData = lines.Skip(1).Where(l => !string.IsNullOrWhiteSpace(l));
 
-            // We'll sum daily "Work" sessions
+            // Summaries
             var dailyWorkTotals = new Dictionary<DateTime, double>();
+            var dailyJobTotals = new Dictionary<DateTime, double>();
+            var dailyPersonalTotals = new Dictionary<DateTime, double>();
 
             foreach (var line in sessionData)
             {
                 var parts = line.Split(',');
                 if (parts.Length < 6) continue;
 
-                // columns: StartTime, EndTime, DurationMinutes, SessionType, FocusRating, SessionCategory
-                // indexes:  0          1       2               3            4            5
+                // columns:
+                // [0] StartTime
+                // [1] EndTime
+                // [2] DurationMinutes
+                // [3] SessionType
+                // [4] FocusRating
+                // [5] SessionCategory
+                var endTimeStr = parts[1];
                 var durationStr = parts[2];
                 var sessionTypeStr = parts[3];
-                var endTimeStr = parts[1];
+                var categoryStr = parts[5];
 
-                // Only add to daily volume if "Work"
+                // only consider "Work" sessions
                 if (!string.Equals(sessionTypeStr, "Work", StringComparison.OrdinalIgnoreCase))
                     continue;
 
@@ -118,29 +128,48 @@ namespace YourProject.Controllers
                 if (!DateTime.TryParse(endTimeStr, out DateTime endTime))
                     continue;
 
-                // use local date from endTime
                 var localDate = endTime.ToLocalTime().Date;
 
+                // All work
                 if (!dailyWorkTotals.ContainsKey(localDate))
-                {
                     dailyWorkTotals[localDate] = 0;
-                }
                 dailyWorkTotals[localDate] += durationMinutes;
+
+                // "Job" vs. "Personal"
+                if (categoryStr.Equals("Job", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!dailyJobTotals.ContainsKey(localDate))
+                        dailyJobTotals[localDate] = 0;
+                    dailyJobTotals[localDate] += durationMinutes;
+                }
+                else if (categoryStr.Equals("Personal", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!dailyPersonalTotals.ContainsKey(localDate))
+                        dailyPersonalTotals[localDate] = 0;
+                    dailyPersonalTotals[localDate] += durationMinutes;
+                }
             }
 
             var today = DateTime.Now.Date;
             dailyWorkTotals.TryGetValue(today, out double todayTotal);
+            dailyJobTotals.TryGetValue(today, out double todayJobVolume);
+            dailyPersonalTotals.TryGetValue(today, out double todayPersonalVolume);
 
-            // Find the last day prior to today
+            // find last day prior to today
             var previousDay = dailyWorkTotals.Keys
                 .Where(d => d < today)
                 .OrderByDescending(d => d)
-                .FirstOrDefault();  // will be default(DateTime) if none
+                .FirstOrDefault();
 
             double previousDayTotal = 0;
+            double previousDayJobVolume = 0;
+            double previousDayPersonalVolume = 0;
+
             if (previousDay != default(DateTime))
             {
                 previousDayTotal = dailyWorkTotals[previousDay];
+                dailyJobTotals.TryGetValue(previousDay, out previousDayJobVolume);
+                dailyPersonalTotals.TryGetValue(previousDay, out previousDayPersonalVolume);
             }
 
             double improvementPercent = 0;
@@ -150,7 +179,6 @@ namespace YourProject.Controllers
             }
             else
             {
-                // If no prior day or prior day = 0
                 improvementPercent = (todayTotal > 0) ? 100 : 0;
             }
 
@@ -158,7 +186,12 @@ namespace YourProject.Controllers
             {
                 improvementPercent,
                 todayVolume = todayTotal,
-                previousDayVolume = previousDayTotal
+                previousDayVolume = previousDayTotal,
+
+                todayJobVolume,
+                previousDayJobVolume,
+                todayPersonalVolume,
+                previousDayPersonalVolume
             });
         }
 
