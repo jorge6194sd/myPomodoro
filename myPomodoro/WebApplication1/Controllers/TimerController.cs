@@ -73,14 +73,14 @@ namespace YourProject.Controllers
             return Ok("Session recorded successfully.");
         }
 
-        // GET: Calculate volumes & improvement (all Work, Job-only, Personal-only)
+        // GET: Calculate volumes & improvement
         [HttpGet]
         public IActionResult GetDailyImprovement()
         {
             var csvPath = Path.Combine(_env.ContentRootPath, "App_Data", "TimerSessions.csv");
             if (!System.IO.File.Exists(csvPath))
             {
-                // No data => all 0
+                // no data => everything 0
                 return Json(new
                 {
                     improvementPercent = 0,
@@ -96,7 +96,6 @@ namespace YourProject.Controllers
             var lines = System.IO.File.ReadAllLines(csvPath);
             var sessionData = lines.Skip(1).Where(l => !string.IsNullOrWhiteSpace(l));
 
-            // Summaries
             var dailyWorkTotals = new Dictionary<DateTime, double>();
             var dailyJobTotals = new Dictionary<DateTime, double>();
             var dailyPersonalTotals = new Dictionary<DateTime, double>();
@@ -106,7 +105,6 @@ namespace YourProject.Controllers
                 var parts = line.Split(',');
                 if (parts.Length < 6) continue;
 
-                // columns:
                 // [0] StartTime
                 // [1] EndTime
                 // [2] DurationMinutes
@@ -118,7 +116,6 @@ namespace YourProject.Controllers
                 var sessionTypeStr = parts[3];
                 var categoryStr = parts[5];
 
-                // only consider "Work" sessions
                 if (!string.Equals(sessionTypeStr, "Work", StringComparison.OrdinalIgnoreCase))
                     continue;
 
@@ -130,12 +127,12 @@ namespace YourProject.Controllers
 
                 var localDate = endTime.ToLocalTime().Date;
 
-                // All work
+                // all work
                 if (!dailyWorkTotals.ContainsKey(localDate))
                     dailyWorkTotals[localDate] = 0;
                 dailyWorkTotals[localDate] += durationMinutes;
 
-                // "Job" vs. "Personal"
+                // job vs. personal
                 if (categoryStr.Equals("Job", StringComparison.OrdinalIgnoreCase))
                 {
                     if (!dailyJobTotals.ContainsKey(localDate))
@@ -148,6 +145,7 @@ namespace YourProject.Controllers
                         dailyPersonalTotals[localDate] = 0;
                     dailyPersonalTotals[localDate] += durationMinutes;
                 }
+                // if "SOS", it still counts as "Work," but we won't track a separate dict
             }
 
             var today = DateTime.Now.Date;
@@ -155,7 +153,6 @@ namespace YourProject.Controllers
             dailyJobTotals.TryGetValue(today, out double todayJobVolume);
             dailyPersonalTotals.TryGetValue(today, out double todayPersonalVolume);
 
-            // find last day prior to today
             var previousDay = dailyWorkTotals.Keys
                 .Where(d => d < today)
                 .OrderByDescending(d => d)

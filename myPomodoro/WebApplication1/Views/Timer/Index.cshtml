@@ -21,8 +21,25 @@
 
             <!-- [2] Modal Body -->
             <div class="modal-body" style="height: 75vh;">
-                <div class="row w-100 h-100">
+                <div class="row w-100">
 
+                    <!-- TOP: Normal Work vs. SOS Buttons -->
+                    <div class="col-12 mb-3">
+                        <div class="d-flex justify-content-center gap-2">
+                            <!-- Normal Work Session Button -->
+                            <button id="normalWorkBtn" class="btn btn-success">
+                                Work Session
+                            </button>
+                            <!-- SOS Button -->
+                            <button id="sosBtn" class="btn btn-danger">
+                                SOS
+                            </button>
+                        </div>
+                    </div>
+
+                </div> <!-- row -->
+
+                <div class="row w-100 h-100">
                     <!-- Left Column (Timer) -->
                     <div class="col-md-8 d-flex flex-column align-items-center justify-content-center">
                         <!-- Timer Display -->
@@ -117,7 +134,7 @@
                     </div>
 
                 </div> <!-- row -->
-            </div> <!-- modal-body -->
+            </div>
             <!-- Modal Footer -->
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"
@@ -157,6 +174,10 @@
     const saveRatingBtn = document.getElementById("saveRatingBtn");
     const stars = document.querySelectorAll("#starRating i");
 
+    // GET the newly added top-level buttons
+    const normalWorkBtn = document.getElementById("normalWorkBtn");
+    const sosBtn = document.getElementById("sosBtn");
+
     // On page load
     updateSessionLabel();
     fetchVolumeIncrease();
@@ -185,6 +206,19 @@
         });
     });
 
+    // NEW: Normal Work Button
+    normalWorkBtn.addEventListener("click", () => {
+        // This basically ensures we revert to "Work" mode if user had switched
+        isWorkSession = true;
+        pendingFocusRating = 0;
+        // user can fill form for 30 min or whatever they want
+        updateStarDisplay(0);
+        updateSessionLabel();
+    });
+
+    // NEW: SOS Button
+    sosBtn.addEventListener("click", startSOS);
+
     // ================
     // TIMER LOGIC
     // ================
@@ -193,12 +227,11 @@
             isPaused = false;
             return;
         }
+
         workDuration = parseInt(document.getElementById("workDuration").value);
         restDuration = parseInt(document.getElementById("restDuration").value);
 
-        if (timerInterval) {
-            clearInterval(timerInterval);
-        }
+        if (timerInterval) clearInterval(timerInterval);
 
         totalSeconds = (isWorkSession ? workDuration : restDuration) * 60;
         updateDisplay(totalSeconds);
@@ -238,6 +271,54 @@
         }, 1000);
     }
 
+    // ================
+    //  SOS LOGIC
+    // ================
+    function startSOS() {
+        // Force a 5-minute Work session with Category = "SOS"
+        isWorkSession = true;
+        isPaused = false;
+        pendingFocusRating = 0;
+        selectedCategory = "SOS";   // so we see "SOS" in CSV
+
+        // Overwrite durations so user doesn't fill form
+        workDuration = 5;    // 5-min work
+        restDuration = 0;    // no rest (or if you want to keep rest, set restDuration=5, up to you)
+
+        // Clear old interval if any
+        if (timerInterval) clearInterval(timerInterval);
+
+        // Initialize and go
+        totalSeconds = workDuration * 60;
+        updateDisplay(totalSeconds);
+        updateSessionLabel(); // label might say "Work Session"
+
+        timerInterval = setInterval(() => {
+            if (!isPaused) {
+                totalSeconds--;
+                updateDisplay(totalSeconds);
+
+                if (totalSeconds <= 0) {
+                    clearInterval(timerInterval);
+                    logSession(true, 5, 0); // 5-min, rating=0
+                    // If we want to auto-record
+                    recordSessions(true);
+
+                    // done, reset or do something else
+                    totalSeconds = 0;
+                    updateDisplay(0);
+                    isWorkSession = true;
+                    pendingFocusRating = 0;
+                    updateStarDisplay(0);
+                    updateSessionLabel();
+                }
+            }
+        }, 1000);
+    }
+
+    // ================
+    //  OTHER FUNCTIONS
+    // ================
     function pauseTimer() {
         isPaused = true;
     }
@@ -274,7 +355,7 @@
     }
 
     function resetTimer() {
-        clearInterval(timerInterval);
+        if (timerInterval) clearInterval(timerInterval);
         timerInterval = null;
         totalSeconds = 0;
         isPaused = false;
@@ -285,9 +366,6 @@
         updateSessionLabel();
     }
 
-    // ================
-    // HELPER FUNCTIONS
-    // ================
     function updateDisplay(seconds) {
         let min = Math.floor(seconds / 60);
         let sec = seconds % 60;
@@ -298,16 +376,22 @@
 
     function updateSessionLabel() {
         if (isWorkSession) {
-            // re-read dropdown if we just switched to work
-            selectedCategory = taskCategoryEl.value;
+            // re-read dropdown if normal (but if it's SOS we override)
+            if (selectedCategory !== "SOS") {
+                selectedCategory = taskCategoryEl.value;
+            }
         }
         sessionLabelEl.textContent = isWorkSession ? "Work Session" : "Break Session";
         checkCategorySelected();
     }
 
     function checkCategorySelected() {
-        if (isWorkSession && !selectedCategory) {
+        // if Work session & not 'SOS' & no category => disable
+        if (isWorkSession && (selectedCategory === "" || selectedCategory == null || selectedCategory === undefined)) {
             startBtn.disabled = true;
+        } else if (selectedCategory === "SOS") {
+            // user clicked SOS => ignore
+            startBtn.disabled = false;
         } else {
             startBtn.disabled = false;
         }
@@ -318,10 +402,7 @@
         const msDuration = duration * 60000;
         const startTime = new Date(endTime - msDuration);
 
-        let category = "";
-        if (isWork) {
-            category = selectedCategory;
-        }
+        let category = (isWork) ? selectedCategory : "";
 
         sessionLogs.push({
             startTime: startTime.toISOString(),
@@ -348,6 +429,7 @@
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(sessionLogs)
             });
+
             if (response.ok) {
                 if (!isAuto) {
                     alert("Sessions recorded successfully (Email sent if configured).");
@@ -387,11 +469,9 @@
             if (!resp.ok) return;
             const data = await resp.json();
 
-            // overall improvement
             document.getElementById("improvement-percentage").textContent =
                 `${data.improvementPercent.toFixed(1)}%`;
 
-            // job vs personal
             document.getElementById("today-job-volume").textContent =
                 data.todayJobVolume;
             document.getElementById("prev-job-volume").textContent =
