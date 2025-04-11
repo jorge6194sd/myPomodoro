@@ -146,11 +146,27 @@
     </div>
 </div>
 
+<!-- The Jiu Jitsu Scenario Popup (hidden by default) -->
+<div id="jiuJitsuModal"
+     style="position: fixed; top: 20%; left: 50%; transform: translateX(-50%); width: 400px; z-index: 9999;
+            background-color: white; border: 2px solid #444; border-radius: 8px; padding: 1rem; display: none;">
+    <h3>Jiu Jitsu Scenario</h3>
+    <div id="jjPosition" style="font-weight: bold;"></div>
+    <div id="jjMove" style="margin-top: 0.5rem; font-style: italic;"></div>
+    <div id="jjType" style="margin-top: 0.5rem;"></div>
+    <div id="jjDesc" style="margin-top: 1rem;"></div>
+
+    <!-- ADD an OK button so user can close and proceed -->
+    <button id="jjOkBtn" class="btn btn-primary" style="margin-top: 1rem;">OK</button>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<!-- Load your JiuJitsuScenarios.js array -->
+<script src="~/js/JiuJitsuScenarios.js"></script>
+
 <script>
-    // ================
-    // GLOBAL STATE
-    // ================
+    // ================ GLOBAL STATE ================
     let timerInterval = null;
     let totalSeconds = 0;
     let isPaused = false;
@@ -174,18 +190,24 @@
     const saveRatingBtn = document.getElementById("saveRatingBtn");
     const stars = document.querySelectorAll("#starRating i");
 
-    // GET the newly added top-level buttons
     const normalWorkBtn = document.getElementById("normalWorkBtn");
     const sosBtn = document.getElementById("sosBtn");
+
+    // Jiu Jitsu popup references
+    const jiuJitsuModal = document.getElementById("jiuJitsuModal");
+    const jjPosition = document.getElementById("jjPosition");
+    const jjMove = document.getElementById("jjMove");
+    const jjType = document.getElementById("jjType");
+    const jjDesc = document.getElementById("jjDesc");
+    // the new OK button
+    const jjOkBtn = document.getElementById("jjOkBtn");
 
     // On page load
     updateSessionLabel();
     fetchVolumeIncrease();
     checkCategorySelected();
 
-    // ================
-    // EVENT LISTENERS
-    // ================
+    // ================ EVENT LISTENERS ================
     taskCategoryEl.addEventListener("change", () => {
         selectedCategory = taskCategoryEl.value;
         checkCategorySelected();
@@ -206,28 +228,102 @@
         });
     });
 
-    // NEW: Normal Work Button
     normalWorkBtn.addEventListener("click", () => {
-        // This basically ensures we revert to "Work" mode if user had switched
         isWorkSession = true;
         pendingFocusRating = 0;
-        // user can fill form for 30 min or whatever they want
         updateStarDisplay(0);
         updateSessionLabel();
     });
 
-    // NEW: SOS Button
-    sosBtn.addEventListener("click", startSOS);
+    // The NEW SOS logic
+    sosBtn.addEventListener("click", showJiuJitsuScenario);
 
-    // ================
-    // TIMER LOGIC
-    // ================
+    // The new "OK" in the scenario popup
+    jjOkBtn.addEventListener("click", () => {
+        jiuJitsuModal.style.display = "none";
+        startSOS();
+    });
+
+    // ==================================================
+    //  Show a random jiu jitsu scenario. (No timer auto-close.)
+    //  We wait for user to press "OK" to start the SOS session.
+    // ==================================================
+    function showJiuJitsuScenario() {
+        // pick a random scenario
+        if (!jiuJitsuScenarios || jiuJitsuScenarios.length === 0) {
+            alert("No Jiu Jitsu scenarios found. Please add more to JiuJitsuScenarios.js!");
+            // fallback: just startSOS
+            startSOS();
+            return;
+        }
+        const randomIndex = Math.floor(Math.random() * jiuJitsuScenarios.length);
+        const scenario = jiuJitsuScenarios[randomIndex];
+
+        // populate the popup
+        jjPosition.textContent = `Position: ${scenario.position}`;
+        jjMove.textContent = `Move: ${scenario.move}`;
+        jjType.textContent = `Type: ${scenario.type}`;
+        jjDesc.textContent = scenario.description;
+
+        // show the popup. user clicks OK to proceed
+        jiuJitsuModal.style.display = "block";
+    }
+
+    // The function that sets a 5-minute "SOS" session
+    function startSOS() {
+        // Force a 5-minute Work session with Category = "SOS"
+        isWorkSession = true;
+        isPaused = false;
+        pendingFocusRating = 0;
+        selectedCategory = "SOS";  // so we see "SOS" in CSV
+
+        workDuration = 5;  // 5-min
+        restDuration = 0;  // no rest, or set to 5 if you like
+
+        // Clear old interval if any
+        if (timerInterval) clearInterval(timerInterval);
+
+        totalSeconds = workDuration * 60;
+        updateDisplay(totalSeconds);
+        updateSessionLabel();
+
+        timerInterval = setInterval(() => {
+            if (!isPaused) {
+                totalSeconds--;
+                updateDisplay(totalSeconds);
+
+                if (totalSeconds <= 0) {
+                    clearInterval(timerInterval);
+                    logSession(true, 5, 0); // store 5-min session
+                    recordSessions(true);
+
+                    // done
+                    totalSeconds = 0;
+                    updateDisplay(0);
+                    isWorkSession = true;
+                    pendingFocusRating = 0;
+                    updateStarDisplay(0);
+                    updateSessionLabel();
+                }
+            }
+        }, 1000);
+    }
+
+    // ================ MISSING FUNCTION: updateDisplay =================
+    function updateDisplay(seconds) {
+        let min = Math.floor(seconds / 60);
+        let sec = seconds % 60;
+        let minStr = (min < 10 ? "0" : "") + min;
+        let secStr = (sec < 10 ? "0" : "") + sec;
+        document.getElementById("timer-display").textContent = `${minStr}:${secStr}`;
+    }
+
+    // ================ EXISTING LOGIC ================
     function startTimer() {
         if (isPaused) {
             isPaused = false;
             return;
         }
-
         workDuration = parseInt(document.getElementById("workDuration").value);
         restDuration = parseInt(document.getElementById("restDuration").value);
 
@@ -244,9 +340,11 @@
                 if (totalSeconds <= 0) {
                     clearInterval(timerInterval);
 
-                    logSession(isWorkSession,
+                    logSession(
+                        isWorkSession,
                         isWorkSession ? workDuration : restDuration,
-                        pendingFocusRating);
+                        pendingFocusRating
+                    );
 
                     if (isWorkSession && workDuration === 30) {
                         thirtyMinSessionCount++;
@@ -271,54 +369,6 @@
         }, 1000);
     }
 
-    // ================
-    //  SOS LOGIC
-    // ================
-    function startSOS() {
-        // Force a 5-minute Work session with Category = "SOS"
-        isWorkSession = true;
-        isPaused = false;
-        pendingFocusRating = 0;
-        selectedCategory = "SOS";   // so we see "SOS" in CSV
-
-        // Overwrite durations so user doesn't fill form
-        workDuration = 5;    // 5-min work
-        restDuration = 0;    // no rest (or if you want to keep rest, set restDuration=5, up to you)
-
-        // Clear old interval if any
-        if (timerInterval) clearInterval(timerInterval);
-
-        // Initialize and go
-        totalSeconds = workDuration * 60;
-        updateDisplay(totalSeconds);
-        updateSessionLabel(); // label might say "Work Session"
-
-        timerInterval = setInterval(() => {
-            if (!isPaused) {
-                totalSeconds--;
-                updateDisplay(totalSeconds);
-
-                if (totalSeconds <= 0) {
-                    clearInterval(timerInterval);
-                    logSession(true, 5, 0); // 5-min, rating=0
-                    // If we want to auto-record
-                    recordSessions(true);
-
-                    // done, reset or do something else
-                    totalSeconds = 0;
-                    updateDisplay(0);
-                    isWorkSession = true;
-                    pendingFocusRating = 0;
-                    updateStarDisplay(0);
-                    updateSessionLabel();
-                }
-            }
-        }, 1000);
-    }
-
-    // ================
-    //  OTHER FUNCTIONS
-    // ================
     function pauseTimer() {
         isPaused = true;
     }
@@ -366,32 +416,18 @@
         updateSessionLabel();
     }
 
-    function updateDisplay(seconds) {
-        let min = Math.floor(seconds / 60);
-        let sec = seconds % 60;
-        let minStr = (min < 10 ? "0" : "") + min;
-        let secStr = (sec < 10 ? "0" : "") + sec;
-        document.getElementById("timer-display").textContent = `${minStr}:${secStr}`;
-    }
-
     function updateSessionLabel() {
-        if (isWorkSession) {
-            // re-read dropdown if normal (but if it's SOS we override)
-            if (selectedCategory !== "SOS") {
-                selectedCategory = taskCategoryEl.value;
-            }
+        if (isWorkSession && selectedCategory !== "SOS") {
+            // re-read normal drop-down
+            selectedCategory = taskCategoryEl.value;
         }
         sessionLabelEl.textContent = isWorkSession ? "Work Session" : "Break Session";
         checkCategorySelected();
     }
 
     function checkCategorySelected() {
-        // if Work session & not 'SOS' & no category => disable
-        if (isWorkSession && (selectedCategory === "" || selectedCategory == null || selectedCategory === undefined)) {
+        if (isWorkSession && selectedCategory !== "SOS" && !selectedCategory) {
             startBtn.disabled = true;
-        } else if (selectedCategory === "SOS") {
-            // user clicked SOS => ignore
-            startBtn.disabled = false;
         } else {
             startBtn.disabled = false;
         }
@@ -402,7 +438,10 @@
         const msDuration = duration * 60000;
         const startTime = new Date(endTime - msDuration);
 
-        let category = (isWork) ? selectedCategory : "";
+        let category = "";
+        if (isWork) {
+            category = selectedCategory;
+        }
 
         sessionLogs.push({
             startTime: startTime.toISOString(),
@@ -429,7 +468,6 @@
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(sessionLogs)
             });
-
             if (response.ok) {
                 if (!isAuto) {
                     alert("Sessions recorded successfully (Email sent if configured).");
