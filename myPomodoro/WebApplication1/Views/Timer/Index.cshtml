@@ -6,7 +6,7 @@
 <link rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" />
 
-<!-- Optional: Font Awesome for star icons (for 5-star rating) -->
+<!-- Optional: Font Awesome for star icons -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
 
 <div class="modal fade show d-block" tabindex="-1" role="dialog"
@@ -27,13 +27,9 @@
                     <div class="col-12 mb-3">
                         <div class="d-flex justify-content-center gap-2">
                             <!-- Normal Work Session Button -->
-                            <button id="normalWorkBtn" class="btn btn-success">
-                                Work Session
-                            </button>
+                            <button id="normalWorkBtn" class="btn btn-success">Work Session</button>
                             <!-- SOS Button -->
-                            <button id="sosBtn" class="btn btn-danger">
-                                SOS
-                            </button>
+                            <button id="sosBtn" class="btn btn-danger">SOS</button>
                         </div>
                     </div>
 
@@ -96,7 +92,6 @@
                                     <span id="improvement-percentage" style="font-size: 1.25rem;">+0%</span>
                                 </p>
 
-                                <!-- Show daily volumes for Job / Personal -->
                                 <p>
                                     <strong>Today's Job Volume (min):</strong>
                                     <span id="today-job-volume" style="font-size: 1.25rem;">0</span>
@@ -146,34 +141,33 @@
     </div>
 </div>
 
-<!-- The Jiu Jitsu Scenario Popup (hidden by default) -->
-<div id="jiuJitsuModal"
-     style="position: fixed; top: 20%; left: 50%; transform: translateX(-50%); width: 400px; z-index: 9999;
-            background-color: white; border: 2px solid #444; border-radius: 8px; padding: 1rem; display: none;">
+<!-- The Jiu Jitsu Scenario Popup (optional if you want the SOS flow) -->
+<div id="jiuJitsuModal" style="position: fixed; top: 20%; left: 50%; transform: translateX(-50%);
+     width: 400px; z-index: 9999; background-color: white; border: 2px solid #444; border-radius: 8px;
+     padding: 1rem; display: none;">
     <h3>Jiu Jitsu Scenario</h3>
     <div id="jjPosition" style="font-weight: bold;"></div>
     <div id="jjMove" style="margin-top: 0.5rem; font-style: italic;"></div>
     <div id="jjType" style="margin-top: 0.5rem;"></div>
     <div id="jjDesc" style="margin-top: 1rem;"></div>
-
-    <!-- ADD an OK button so user can close and proceed -->
     <button id="jjOkBtn" class="btn btn-primary" style="margin-top: 1rem;">OK</button>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
-
-<!-- Load your JiuJitsuScenarios.js array -->
 <script src="~/js/JiuJitsuScenarios.js"></script>
 
 <script>
-    // ================ GLOBAL STATE ================
+    // ==================== GLOBAL STATE (End-Time Approach) ====================
     let timerInterval = null;
-    let totalSeconds = 0;
     let isPaused = false;
     let isWorkSession = true;
     let workDuration = 30;
     let restDuration = 5;
     let thirtyMinSessionCount = 0;
+
+    // For end-time logic
+    let endTime = 0;         // the Date.now() + sessionMs
+    let timeRemaining = 0;   // leftover ms when paused
 
     let sessionLogs = [];
     let pendingFocusRating = 0;
@@ -193,13 +187,11 @@
     const normalWorkBtn = document.getElementById("normalWorkBtn");
     const sosBtn = document.getElementById("sosBtn");
 
-    // Jiu Jitsu popup references
     const jiuJitsuModal = document.getElementById("jiuJitsuModal");
     const jjPosition = document.getElementById("jjPosition");
     const jjMove = document.getElementById("jjMove");
     const jjType = document.getElementById("jjType");
     const jjDesc = document.getElementById("jjDesc");
-    // the new OK button
     const jjOkBtn = document.getElementById("jjOkBtn");
 
     // On page load
@@ -207,7 +199,7 @@
     fetchVolumeIncrease();
     checkCategorySelected();
 
-    // ================ EVENT LISTENERS ================
+    // ===================== EVENT LISTENERS =====================
     taskCategoryEl.addEventListener("change", () => {
         selectedCategory = taskCategoryEl.value;
         checkCategorySelected();
@@ -235,190 +227,195 @@
         updateSessionLabel();
     });
 
-    // The NEW SOS logic
+    // Jiu Jitsu scenario for SOS
     sosBtn.addEventListener("click", showJiuJitsuScenario);
-
-    // The new "OK" in the scenario popup
     jjOkBtn.addEventListener("click", () => {
         jiuJitsuModal.style.display = "none";
         startSOS();
     });
 
-    // ==================================================
-    //  Show a random jiu jitsu scenario. (No timer auto-close.)
-    //  We wait for user to press "OK" to start the SOS session.
-    // ==================================================
-    function showJiuJitsuScenario() {
-        // pick a random scenario
-        if (!jiuJitsuScenarios || jiuJitsuScenarios.length === 0) {
-            alert("No Jiu Jitsu scenarios found. Please add more to JiuJitsuScenarios.js!");
-            // fallback: just startSOS
-            startSOS();
-            return;
-        }
-        const randomIndex = Math.floor(Math.random() * jiuJitsuScenarios.length);
-        const scenario = jiuJitsuScenarios[randomIndex];
+    // ================ Real-Time Approach ================
 
-        // populate the popup
-        jjPosition.textContent = `Position: ${scenario.position}`;
-        jjMove.textContent = `Move: ${scenario.move}`;
-        jjType.textContent = `Type: ${scenario.type}`;
-        jjDesc.textContent = scenario.description;
-
-        // show the popup. user clicks OK to proceed
-        jiuJitsuModal.style.display = "block";
-    }
-
-    // The function that sets a 5-minute "SOS" session
-    function startSOS() {
-        // Force a 5-minute Work session with Category = "SOS"
-        isWorkSession = true;
-        isPaused = false;
-        pendingFocusRating = 0;
-        selectedCategory = "SOS";  // so we see "SOS" in CSV
-
-        workDuration = 5;  // 5-min
-        restDuration = 0;  // no rest, or set to 5 if you like
-
-        // Clear old interval if any
-        if (timerInterval) clearInterval(timerInterval);
-
-        totalSeconds = workDuration * 60;
-        updateDisplay(totalSeconds);
-        updateSessionLabel();
-
-        timerInterval = setInterval(() => {
-            if (!isPaused) {
-                totalSeconds--;
-                updateDisplay(totalSeconds);
-
-                if (totalSeconds <= 0) {
-                    clearInterval(timerInterval);
-                    logSession(true, 5, 0); // store 5-min session
-                    recordSessions(true);
-
-                    // done
-                    totalSeconds = 0;
-                    updateDisplay(0);
-                    isWorkSession = true;
-                    pendingFocusRating = 0;
-                    updateStarDisplay(0);
-                    updateSessionLabel();
-                }
-            }
-        }, 1000);
-    }
-
-    // ================ MISSING FUNCTION: updateDisplay =================
-    function updateDisplay(seconds) {
-        let min = Math.floor(seconds / 60);
-        let sec = seconds % 60;
-        let minStr = (min < 10 ? "0" : "") + min;
-        let secStr = (sec < 10 ? "0" : "") + sec;
-        document.getElementById("timer-display").textContent = `${minStr}:${secStr}`;
-    }
-
-    // ================ EXISTING LOGIC ================
+    // (A) Normal Start Timer
     function startTimer() {
+        // If paused, unpause
         if (isPaused) {
             isPaused = false;
+            // new endTime = now + leftover
+            endTime = Date.now() + timeRemaining;
+            startInterval();
             return;
         }
-        workDuration = parseInt(document.getElementById("workDuration").value);
-        restDuration = parseInt(document.getElementById("restDuration").value);
+
+        // Otherwise, we are starting fresh
+        workDuration = parseInt(document.getElementById("workDuration").value) || 30;
+        restDuration = parseInt(document.getElementById("restDuration").value) || 5;
 
         if (timerInterval) clearInterval(timerInterval);
 
-        totalSeconds = (isWorkSession ? workDuration : restDuration) * 60;
-        updateDisplay(totalSeconds);
+        // If it's a work session
+        if (isWorkSession) {
+            let ms = workDuration * 60 * 1000;
+            endTime = Date.now() + ms;
+        } else {
+            let ms = restDuration * 60 * 1000;
+            endTime = Date.now() + ms;
+        }
 
+        startInterval();
+    }
+
+    // (B) Start the setInterval that checks the difference
+    function startInterval() {
         timerInterval = setInterval(() => {
             if (!isPaused) {
-                totalSeconds--;
-                updateDisplay(totalSeconds);
-
-                if (totalSeconds <= 0) {
+                let diff = endTime - Date.now();
+                if (diff <= 0) {
+                    // time's up
                     clearInterval(timerInterval);
+                    diff = 0;
 
-                    logSession(
-                        isWorkSession,
-                        isWorkSession ? workDuration : restDuration,
-                        pendingFocusRating
-                    );
+                    // log the finished session
+                    const minutes = isWorkSession
+                        ? parseInt(document.getElementById("workDuration").value)
+                        : parseInt(document.getElementById("restDuration").value);
+                    logSession(isWorkSession, minutes, pendingFocusRating);
 
-                    if (isWorkSession && workDuration === 30) {
+                    // If it was a 30-min work session
+                    if (isWorkSession && minutes === 30) {
                         thirtyMinSessionCount++;
                         document.getElementById("completed-sessions").innerText = thirtyMinSessionCount;
                     }
 
+                    // If it was a work session, do record
                     if (isWorkSession) {
                         recordSessions(true);
-                        isWorkSession = false;
-                        pendingFocusRating = 0;
-                        updateStarDisplay(0);
-                        updateSessionLabel();
-                        startTimer(); // auto-start rest
-                    } else {
-                        isWorkSession = true;
-                        pendingFocusRating = 0;
-                        updateStarDisplay(0);
-                        updateSessionLabel();
                     }
+
+                    // switch session type
+                    isWorkSession = !isWorkSession;
+                    pendingFocusRating = 0;
+                    updateStarDisplay(0);
+                    updateSessionLabel();
+
+                    // auto-start next session
+                    startTimer();
+                } else {
+                    // still time left
+                    updateDisplay(diff);
                 }
             }
-        }, 1000);
+        }, 250); // quarter-second updates are fine
     }
 
     function pauseTimer() {
+        if (!timerInterval) return;
         isPaused = true;
+        let diff = endTime - Date.now();
+        if (diff < 0) diff = 0;
+        timeRemaining = diff;
+        clearInterval(timerInterval);
+        timerInterval = null;
     }
 
+    // ================ STOP & RECORD: End Work Early ================
     function stopAndRecord() {
         if (!isWorkSession || !timerInterval) {
             alert("Stop & Record only applies during a Work session in progress.");
             return;
         }
-
         clearInterval(timerInterval);
         timerInterval = null;
 
-        let fullWorkSeconds = workDuration * 60;
-        let elapsedSeconds = fullWorkSeconds - totalSeconds;
-        let elapsedMinutes = Math.round(elapsedSeconds / 60);
+        let diff = endTime - Date.now();
+        if (diff < 0) diff = 0;
+        // how many ms have we actually used?
+        let totalMs = (parseInt(document.getElementById("workDuration").value) || 30) * 60 * 1000;
+        let usedMs = totalMs - diff;
+        if (usedMs < 0) usedMs = 0;
+        let usedMin = Math.round(usedMs / 60000);
 
-        logSession(true, elapsedMinutes, pendingFocusRating);
+        logSession(true, usedMin, pendingFocusRating);
 
-        if (workDuration === 30) {
+        // if it was a 30-min session
+        if (parseInt(document.getElementById("workDuration").value) === 30) {
             thirtyMinSessionCount++;
             document.getElementById("completed-sessions").innerText = thirtyMinSessionCount;
         }
 
         recordSessions(true);
 
-        totalSeconds = 0;
-        updateDisplay(0);
+        // reset to zero
+        endTime = 0;
+        timeRemaining = 0;
         isPaused = false;
         isWorkSession = true;
-        pendingFocusRating = 0;
+        updateDisplay(0);
         updateStarDisplay(0);
         updateSessionLabel();
     }
 
+    // (C) SOS approach: always 5 min
+    function showJiuJitsuScenario() {
+        if (!jiuJitsuScenarios || jiuJitsuScenarios.length === 0) {
+            alert("No Jiu Jitsu scenarios found. Please add more!");
+            startSOS();
+            return;
+        }
+        const randIndex = Math.floor(Math.random() * jiuJitsuScenarios.length);
+        const scenario = jiuJitsuScenarios[randIndex];
+        jjPosition.textContent = `Position: ${scenario.position}`;
+        jjMove.textContent = `Move: ${scenario.move}`;
+        jjType.textContent = `Type: ${scenario.type}`;
+        jjDesc.textContent = scenario.description;
+        jiuJitsuModal.style.display = "block";
+    }
+
+    function startSOS() {
+        // 5-min work session
+        isWorkSession = true;
+        isPaused = false;
+        pendingFocusRating = 0;
+        selectedCategory = "SOS";
+
+        // Clear old interval if any
+        if (timerInterval) clearInterval(timerInterval);
+
+        const ms = 5 * 60 * 1000;
+        endTime = Date.now() + ms;
+        startInterval();
+        updateSessionLabel();
+    }
+
+    // ================ updateDisplay: show mm:ss from ms ================
+    function updateDisplay(ms) {
+        if (ms < 0) ms = 0;
+        let totalSec = Math.floor(ms / 1000);
+        let min = Math.floor(totalSec / 60);
+        let sec = totalSec % 60;
+
+        let minStr = (min < 10 ? "0" : "") + min;
+        let secStr = (sec < 10 ? "0" : "") + sec;
+        document.getElementById("timer-display").textContent = `${minStr}:${secStr}`;
+    }
+
+    // Reset Timer entirely
     function resetTimer() {
         if (timerInterval) clearInterval(timerInterval);
         timerInterval = null;
-        totalSeconds = 0;
+        endTime = 0;
+        timeRemaining = 0;
         isPaused = false;
         isWorkSession = true;
-        updateDisplay(totalSeconds);
+        updateDisplay(0);
         pendingFocusRating = 0;
         updateStarDisplay(0);
         updateSessionLabel();
     }
 
+    // update session label, etc.
     function updateSessionLabel() {
         if (isWorkSession && selectedCategory !== "SOS") {
-            // re-read normal drop-down
             selectedCategory = taskCategoryEl.value;
         }
         sessionLabelEl.textContent = isWorkSession ? "Work Session" : "Break Session";
@@ -433,23 +430,20 @@
         }
     }
 
+    // log the session
     function logSession(isWork, duration, focusRating) {
-        const endTime = new Date();
-        const msDuration = duration * 60000;
-        const startTime = new Date(endTime - msDuration);
+        const endTimeStamp = new Date();
+        const msDuration = duration * 60_000;
+        const startTimeStamp = new Date(endTimeStamp - msDuration);
 
-        let category = "";
-        if (isWork) {
-            category = selectedCategory;
-        }
-
+        let cat = (isWork) ? selectedCategory : "";
         sessionLogs.push({
-            startTime: startTime.toISOString(),
-            endTime: endTime.toISOString(),
+            startTime: startTimeStamp.toISOString(),
+            endTime: endTimeStamp.toISOString(),
             durationMinutes: duration,
             sessionType: isWork ? "Work" : "Rest",
             focusRating: focusRating,
-            sessionCategory: category
+            sessionCategory: cat
         });
 
         if (isWork && focusRating > 0) {
@@ -457,6 +451,7 @@
         }
     }
 
+    // record to CSV
     async function recordSessions(isAuto) {
         if (sessionLogs.length === 0) {
             if (!isAuto) alert("No sessions to record.");
@@ -489,7 +484,8 @@
 
     function saveFocusRating() {
         if (pendingFocusRating > 0) {
-            document.getElementById("self-intensity").textContent = `${pendingFocusRating} / 5 (pending)`;
+            document.getElementById("self-intensity").textContent =
+                `${pendingFocusRating} / 5 (pending)`;
             alert("Focus rating saved for the next Work session.");
         }
     }
@@ -501,6 +497,7 @@
         });
     }
 
+    // fetch improvement stats
     async function fetchVolumeIncrease() {
         try {
             const resp = await fetch("/Timer/GetDailyImprovement");
