@@ -1,4 +1,4 @@
-﻿namespace YourProject.Models
+﻿namespace WebApplication1.Models
 {
     public class TimerSession
     {

@@ -1,20 +1,25 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using System.Net;
 using System.Net.Mail;
-using System.Text;
-using YourProject.Models;
+using YourProject.Data;      // <-- for TimerSessionRepository
+using WebApplication1.Models; // <-- for TimerSession
+using System.Text;           // (if you still want email logic using StringBuilder)
 using System.Globalization;
+using System.Threading.Tasks;
 
 namespace YourProject.Controllers
 {
     public class TimerController : Controller
     {
-        private readonly IWebHostEnvironment _env;
+        private readonly TimerSessionRepository _repo;
         private readonly IConfiguration _config;
 
-        public TimerController(IWebHostEnvironment env, IConfiguration config)
+        // If you need IWebHostEnvironment for other things, you can keep it.
+        public TimerController(
+            TimerSessionRepository repo,
+            IConfiguration config)
         {
-            _env = env;
+            _repo = repo;
             _config = config;
         }
 
@@ -24,45 +29,29 @@ namespace YourProject.Controllers
             return View();
         }
 
-        // POST: Record completed sessions to CSV, with SessionCategory included
+        // POST: Record completed sessions to SQL (Dapper)
         [HttpPost]
-        public IActionResult RecordSession([FromBody] List<TimerSession> sessions)
+        public async Task<IActionResult> RecordSession([FromBody] List<TimerSession> sessions)
         {
-            if (sessions == null || !sessions.Any())
+            if (sessions == null || sessions.Count == 0)
                 return BadRequest("No sessions provided.");
 
-            var csvPath = Path.Combine(_env.ContentRootPath, "App_Data", "TimerSessions.csv");
-            Directory.CreateDirectory(Path.GetDirectoryName(csvPath)!);
+            // Insert into SQL instead of writing CSV
+            await _repo.InsertSessionsAsync(sessions);
 
-            var csvBuilder = new StringBuilder();
-
-            // If file doesn't exist, add header row
-            bool fileExists = System.IO.File.Exists(csvPath);
-            if (!fileExists)
-            {
-                // 6 columns: StartTime,EndTime,DurationMinutes,SessionType,FocusRating,SessionCategory
-                csvBuilder.AppendLine("StartTime,EndTime,DurationMinutes,SessionType,FocusRating,SessionCategory");
-            }
-
-            // Append each session
-            foreach (var session in sessions)
-            {
-                var cat = session.SessionCategory ?? "";
-                csvBuilder.AppendLine(
-                    $"{session.StartTime},{session.EndTime},{session.DurationMinutes}," +
-                    $"{session.SessionType},{session.FocusRating},{cat}"
-                );
-            }
-
-            System.IO.File.AppendAllText(csvPath, csvBuilder.ToString());
-
-            // Optional: send email
+            // Optional: email logic, if your _config has EmailSettings
             try
             {
                 var shouldSendEmail = _config.GetValue<bool>("EmailSettings:SendEmail");
                 if (shouldSendEmail)
                 {
-                    SendEmail(csvBuilder.ToString());
+                    // Build an email body from the sessions
+                    var sb = new StringBuilder();
+                    foreach (var s in sessions)
+                    {
+                        sb.AppendLine($"{s.StartTime}, {s.EndTime}, {s.DurationMinutes}, {s.SessionType}, {s.FocusRating}, {s.SessionCategory}");
+                    }
+                    SendEmail(sb.ToString());
                 }
             }
             catch (Exception ex)
@@ -70,17 +59,17 @@ namespace YourProject.Controllers
                 return StatusCode(500, $"Failed to send email. Error: {ex.Message}");
             }
 
-            return Ok("Session recorded successfully.");
+            return Ok("Session recorded successfully (SQL).");
         }
 
-        // GET: Calculate volumes & improvement
+        // GET: Calculate volumes & improvement from DB, not from CSV
         [HttpGet]
-        public IActionResult GetDailyImprovement()
+        public async Task<IActionResult> GetDailyImprovement()
         {
-            var csvPath = Path.Combine(_env.ContentRootPath, "App_Data", "TimerSessions.csv");
-            if (!System.IO.File.Exists(csvPath))
+            // We'll pull all sessions from DB
+            var allSessions = await _repo.GetAllAsync();
+            if (allSessions == null || !allSessions.Any())
             {
-                // no data => everything 0
                 return Json(new
                 {
                     improvementPercent = 0,
@@ -93,59 +82,36 @@ namespace YourProject.Controllers
                 });
             }
 
-            var lines = System.IO.File.ReadAllLines(csvPath);
-            var sessionData = lines.Skip(1).Where(l => !string.IsNullOrWhiteSpace(l));
-
+            // Group "Work" sessions by date
             var dailyWorkTotals = new Dictionary<DateTime, double>();
             var dailyJobTotals = new Dictionary<DateTime, double>();
             var dailyPersonalTotals = new Dictionary<DateTime, double>();
 
-            foreach (var line in sessionData)
+            foreach (var session in allSessions)
             {
-                var parts = line.Split(',');
-                if (parts.Length < 6) continue;
-
-                // [0] StartTime
-                // [1] EndTime
-                // [2] DurationMinutes
-                // [3] SessionType
-                // [4] FocusRating
-                // [5] SessionCategory
-                var endTimeStr = parts[1];
-                var durationStr = parts[2];
-                var sessionTypeStr = parts[3];
-                var categoryStr = parts[5];
-
-                if (!string.Equals(sessionTypeStr, "Work", StringComparison.OrdinalIgnoreCase))
+                if (!session.SessionType.Equals("Work", StringComparison.OrdinalIgnoreCase))
                     continue;
 
-                if (!double.TryParse(durationStr, out double durationMinutes))
-                    continue;
-
-                if (!DateTime.TryParse(endTimeStr, out DateTime endTime))
-                    continue;
-
-                var localDate = endTime.ToLocalTime().Date;
-
-                // all work
+                var localDate = session.EndTime.ToLocalTime().Date;
                 if (!dailyWorkTotals.ContainsKey(localDate))
                     dailyWorkTotals[localDate] = 0;
-                dailyWorkTotals[localDate] += durationMinutes;
+                dailyWorkTotals[localDate] += session.DurationMinutes;
 
                 // job vs. personal
-                if (categoryStr.Equals("Job", StringComparison.OrdinalIgnoreCase))
+                if (session.SessionCategory != null &&
+                    session.SessionCategory.Equals("Job", StringComparison.OrdinalIgnoreCase))
                 {
                     if (!dailyJobTotals.ContainsKey(localDate))
                         dailyJobTotals[localDate] = 0;
-                    dailyJobTotals[localDate] += durationMinutes;
+                    dailyJobTotals[localDate] += session.DurationMinutes;
                 }
-                else if (categoryStr.Equals("Personal", StringComparison.OrdinalIgnoreCase))
+                else if (session.SessionCategory != null &&
+                         session.SessionCategory.Equals("Personal", StringComparison.OrdinalIgnoreCase))
                 {
                     if (!dailyPersonalTotals.ContainsKey(localDate))
                         dailyPersonalTotals[localDate] = 0;
-                    dailyPersonalTotals[localDate] += durationMinutes;
+                    dailyPersonalTotals[localDate] += session.DurationMinutes;
                 }
-                // if "SOS", it still counts as "Work," but we won't track a separate dict
             }
 
             var today = DateTime.Now.Date;
@@ -153,6 +119,7 @@ namespace YourProject.Controllers
             dailyJobTotals.TryGetValue(today, out double todayJobVolume);
             dailyPersonalTotals.TryGetValue(today, out double todayPersonalVolume);
 
+            // Find the most recent day before today
             var previousDay = dailyWorkTotals.Keys
                 .Where(d => d < today)
                 .OrderByDescending(d => d)
@@ -192,7 +159,7 @@ namespace YourProject.Controllers
             });
         }
 
-        private void SendEmail(string csvContent)
+        private void SendEmail(string content)
         {
             var smtpHost = _config.GetValue<string>("EmailSettings:SmtpHost");
             var smtpPort = _config.GetValue<int>("EmailSettings:SmtpPort");
@@ -210,7 +177,7 @@ namespace YourProject.Controllers
                 {
                     From = new MailAddress(fromEmail),
                     Subject = "Completed Timer Sessions",
-                    Body = "Here are the completed timer sessions:\n\n" + csvContent
+                    Body = "Here are the completed timer sessions:\n\n" + content
                 };
                 mailMessage.To.Add(new MailAddress(toEmail));
 
