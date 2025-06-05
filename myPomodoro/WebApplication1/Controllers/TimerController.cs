@@ -2,9 +2,9 @@
 using System.Net;
 using System.Net.Mail;
 using System.Text;
-using YourProject.Models;
+using WebApplication1.Models;
 
-namespace YourProject.Controllers
+namespace WebApplication1.Controllers
 {
     public class TimerController : Controller
     {
