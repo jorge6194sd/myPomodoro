@@ -2,188 +2,430 @@
     ViewData["Title"] = "Timer";
 }
 
-<!-- Use Bootstrap for the "nice" modal look -->
-<link
-    rel="stylesheet"
-    href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css"
-/>
+<!-- Bootstrap CSS -->
+<link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
 
-<div class="modal fade show d-block" tabindex="-1" role="dialog" style="background-color: rgba(0,0,0,0.8);" aria-modal="true">
+<div class="modal fade show d-block" tabindex="-1" role="dialog"
+     style="background-color: rgba(0,0,0,0.8);" aria-modal="true">
     <div class="modal-dialog modal-fullscreen" role="document">
         <div class="modal-content text-center" style="background-color: #f7f7f7;">
+
+            <!-- [1] Header -->
             <div class="modal-header">
                 <h1 class="modal-title w-100" style="font-size: 2rem;">Pomodoro-Style Timer</h1>
             </div>
-            <div class="modal-body d-flex flex-column align-items-center justify-content-center" style="height: 75vh;">
 
-                <!-- Timer Display -->
-                <div id="timer-display" style="font-size: 5rem; margin-bottom: 1rem;">00:00</div>
+            <!-- [2] Body -->
+            <div class="modal-body" style="height: 75vh;">
+                <div class="row w-100 h-100">
 
-                <!-- Controls for session durations -->
-                <div class="mb-3">
-                    <label for="workDuration" class="form-label">Work Session (minutes):</label>
-                    <input type="number" id="workDuration" class="form-control" style="width:200px; margin: 0 auto;" value="30" />
+                    <!-- Left Column (Timer) -->
+                    <div class="col-md-8 d-flex flex-column align-items-center justify-content-center">
+
+                        <!-- Timer Display -->
+                        <div id="timer-display" style="font-size: 5rem; margin-bottom: 1rem;">00:00</div>
+
+                        <!-- Session Label (Work / Break) -->
+                        <div id="session-label" style="font-size: 1.25rem; margin-bottom: 1rem;">Work Session</div>
+
+                        <!-- Duration controls -->
+                        <div class="mb-3">
+                            <label for="workDuration" class="form-label">Work Session (minutes):</label>
+                            <input type="number" id="workDuration" class="form-control"
+                                   style="width:200px; margin: 0 auto;" value="30" />
+                        </div>
+                        <div class="mb-3">
+                            <label for="restDuration" class="form-label">Rest Session (minutes):</label>
+                            <input type="number" id="restDuration" class="form-control"
+                                   style="width:200px; margin: 0 auto;" value="5" />
+                        </div>
+
+                        <!-- Category (Job/Personal) -->
+                        <div class="mb-3">
+                            <label for="taskCategory" class="form-label">Select Task Category:</label>
+                            <select id="taskCategory" class="form-select" style="width:200px; margin:0 auto;">
+                                <option value="">(None)</option>
+                                <option value="Job">Job</option>
+                                <option value="Personal">Personal</option>
+                            </select>
+                        </div>
+
+                        <!-- Buttons -->
+                        <div class="d-flex flex-row gap-3">
+                            <button id="start-btn" class="btn btn-success btn-lg">Start</button>
+                            <button id="pause-btn" class="btn btn-warning btn-lg">Pause</button>
+                            <button id="reset-btn" class="btn btn-danger btn-lg">Reset</button>
+                            <button id="record-btn" class="btn btn-primary btn-lg">Record</button>
+                        </div>
+
+                        <!-- Completed 30-min sessions -->
+                        <div class="mt-4">
+                            <span style="font-size: 1.5rem;">30-min Sessions Completed:</span>
+                            <span id="completed-sessions" style="font-size: 2rem;">0</span>
+                        </div>
+                    </div>
+
+                    <!-- Right Column: Focus Metrics + Weekly Chart -->
+                    <div class="col-md-4 d-flex flex-column align-items-center">
+                        <div class="card w-100" style="margin-bottom: 1rem;">
+                            <div class="card-body">
+                                <h5 class="card-title">Focus Metrics</h5>
+
+                                <p>
+                                    <strong>Today's Improvement:</strong>
+                                    <span id="improvement-percentage" style="font-size: 1.25rem;">+0%</span>
+                                </p>
+                                <p>
+                                    <strong>Today's Job Volume (min):</strong>
+                                    <span id="today-job-volume" style="font-size: 1.25rem;">0</span>
+                                </p>
+                                <p>
+                                    <strong>Last Work Day's Job Volume (min):</strong>
+                                    <span id="prev-job-volume" style="font-size: 1.25rem;">0</span>
+                                </p>
+                                <p>
+                                    <strong>Today's Personal Volume (min):</strong>
+                                    <span id="today-personal-volume" style="font-size: 1.25rem;">0</span>
+                                </p>
+                                <p>
+                                    <strong>Last Work Day's Personal Volume (min):</strong>
+                                    <span id="prev-personal-volume" style="font-size: 1.25rem;">0</span>
+                                </p>
+                                <p>
+                                    <strong>Focus Rating:</strong>
+                                    <span id="self-intensity" style="font-size: 1.25rem;">N/A</span>
+                                </p>
+
+                                <!-- 5 Star Rating -->
+                                <div id="starRating" style="margin-bottom: 1rem;">
+                                    <i class="fa-solid fa-star" data-value="1"></i>
+                                    <i class="fa-solid fa-star" data-value="2"></i>
+                                    <i class="fa-solid fa-star" data-value="3"></i>
+                                    <i class="fa-solid fa-star" data-value="4"></i>
+                                    <i class="fa-solid fa-star" data-value="5"></i>
+                                </div>
+                                <button id="saveRatingBtn" class="btn btn-secondary btn-sm">Save Rating</button>
+                            </div>
+                        </div>
+
+                        <!-- Last 7 Days Chart -->
+                        <div style="width: 90%;">
+                            <h5>Weekly Chart (Last 7 Days)</h5>
+                            <canvas id="myChart" width="300" height="300"></canvas>
+                        </div>
+                    </div>
+
                 </div>
-                <div class="mb-3">
-                    <label for="restDuration" class="form-label">Rest Session (minutes):</label>
-                    <input type="number" id="restDuration" class="form-control" style="width:200px; margin: 0 auto;" value="5" />
-                </div>
-
-                <!-- Buttons -->
-                <div class="d-flex flex-row gap-3">
-                    <button id="start-btn" class="btn btn-success btn-lg">Start</button>
-                    <button id="pause-btn" class="btn btn-warning btn-lg">Pause</button>
-                    <button id="reset-btn" class="btn btn-danger btn-lg">Reset</button>
-                    <button id="record-btn" class="btn btn-primary btn-lg">Record</button>
-                </div>
-
-                <!-- Completed 30-min sessions -->
-                <div class="mt-4">
-                    <span style="font-size: 1.5rem;">30-min Sessions Completed:</span>
-                    <span id="completed-sessions" style="font-size: 2rem;">0</span>
-                </div>
-
             </div>
+
+            <!-- Modal Footer -->
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" onclick="window.location.href='/'">Close</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"
+                        onclick="window.location.href='/'">
+                    Close
+                </button>
             </div>
         </div>
     </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <script>
+    // ================== GLOBAL STATE ==================
     let timerInterval = null;
-    let totalSeconds = 0;
     let isPaused = false;
-
-    let isWorkSession = true; // start with work session
-    let workDuration = 30;    // default 30 minutes
-    let restDuration = 5;     // default 5 minutes
-
-    // To store completed session logs
-    let sessionLogs = [];
-
-    // For tracking 30-min sessions completed
+    let isWorkSession = true;
+    let workDuration = 30;
+    let restDuration = 5;
     let thirtyMinSessionCount = 0;
 
-    document.getElementById("start-btn").addEventListener("click", startTimer);
-    document.getElementById("pause-btn").addEventListener("click", pauseTimer);
-    document.getElementById("reset-btn").addEventListener("click", resetTimer);
-    document.getElementById("record-btn").addEventListener("click", recordSessions);
+    let endTime = 0;
+    let timeRemaining = 0;
 
+    let sessionLogs = [];
+    let pendingFocusRating = 0;
+    let selectedCategory = "";
+
+    const sessionLabelEl = document.getElementById("session-label");
+    const taskCategoryEl = document.getElementById("taskCategory");
+    const startBtn = document.getElementById("start-btn");
+    const pauseBtn = document.getElementById("pause-btn");
+    const resetBtn = document.getElementById("reset-btn");
+    const recordBtn = document.getElementById("record-btn");
+    const saveRatingBtn = document.getElementById("saveRatingBtn");
+    const stars = document.querySelectorAll("#starRating i");
+
+    // On page load, fetch improvement stats & chart data
+    window.onload = () => {
+        fetchVolumeIncrease();
+        loadDailyTotalsChart();
+    };
+
+    // Category dropdown
+    taskCategoryEl.addEventListener("change", () => {
+        selectedCategory = taskCategoryEl.value;
+    });
+
+    // Timer buttons
+    startBtn.addEventListener("click", startTimer);
+    pauseBtn.addEventListener("click", pauseTimer);
+    resetBtn.addEventListener("click", resetTimer);
+
+    // Recording
+    recordBtn.addEventListener("click", () => recordSessions(false));
+
+    // Star rating
+    saveRatingBtn.addEventListener("click", saveFocusRating);
+    stars.forEach(star => {
+        star.addEventListener("click", () => {
+            const val = parseInt(star.getAttribute("data-value"));
+            pendingFocusRating = val;
+            updateStarDisplay(val);
+        });
+    });
+
+    // ================== TIMER LOGIC ==================
     function startTimer() {
-        // If paused, just resume
         if (isPaused) {
+            // Unpause
             isPaused = false;
+            endTime = Date.now() + timeRemaining;
+            startInterval();
             return;
         }
+        // Start fresh
+        workDuration = parseInt(document.getElementById("workDuration").value) || 30;
+        restDuration = parseInt(document.getElementById("restDuration").value) || 5;
 
-        // Otherwise, initialize a fresh session
-        workDuration = parseInt(document.getElementById("workDuration").value);
-        restDuration = parseInt(document.getElementById("restDuration").value);
+        if (timerInterval) clearInterval(timerInterval);
 
-        // If we're just starting or after a reset
-        if (timerInterval) {
-            clearInterval(timerInterval);
+        if (isWorkSession) {
+            endTime = Date.now() + (workDuration * 60_000);
+        } else {
+            endTime = Date.now() + (restDuration * 60_000);
         }
-        totalSeconds = (isWorkSession ? workDuration : restDuration) * 60;
-        updateDisplay(totalSeconds);
-
-        // Start counting down
-        timerInterval = setInterval(() => {
-            if (!isPaused) {
-                totalSeconds--;
-                updateDisplay(totalSeconds);
-
-                // Timer completed
-                if (totalSeconds <= 0) {
-                    clearInterval(timerInterval);
-                    
-                    // Log the finished session
-                    logSession(isWorkSession, (isWorkSession ? workDuration : restDuration));
-
-                    // If it was a 30-min work session, increment the completed counter
-                    if (isWorkSession && workDuration === 30) {
-                        thirtyMinSessionCount++;
-                        document.getElementById("completed-sessions").innerText = thirtyMinSessionCount;
-                    }
-
-                    // Switch session type (work <-> rest)
-                    isWorkSession = !isWorkSession;
-
-                    // Automatically start the next session
-                    startTimer();
-                }
-            }
-        }, 1000);
+        startInterval();
     }
 
     function pauseTimer() {
+        if (!timerInterval) return;
         isPaused = true;
+        const diff = endTime - Date.now();
+        timeRemaining = (diff > 0) ? diff : 0;
+        clearInterval(timerInterval);
+        timerInterval = null;
     }
 
     function resetTimer() {
-        clearInterval(timerInterval);
+        if (timerInterval) clearInterval(timerInterval);
         timerInterval = null;
-        totalSeconds = 0;
+        endTime = 0;
+        timeRemaining = 0;
         isPaused = false;
         isWorkSession = true;
-        updateDisplay(totalSeconds);
+        pendingFocusRating = 0;
+        sessionLogs = [];
+        thirtyMinSessionCount = 0;
+
+        updateDisplay(0);
+        updateStarDisplay(0);
+        sessionLabelEl.textContent = "Work Session";
+        document.getElementById("completed-sessions").textContent = "0";
     }
 
-    function updateDisplay(seconds) {
-        let min = Math.floor(seconds / 60);
-        let sec = seconds % 60;
+    function startInterval() {
+        timerInterval = setInterval(() => {
+            if (!isPaused) {
+                let diff = endTime - Date.now();
+                if (diff <= 0) {
+                    clearInterval(timerInterval);
+                    diff = 0;
 
-        let minStr = min < 10 ? "0" + min : min;
-        let secStr = sec < 10 ? "0" + sec : sec;
+                    // session ended
+                    let usedMin = isWorkSession ? workDuration : restDuration;
+                    logSession(isWorkSession, usedMin);
 
+                    if (isWorkSession && usedMin === 30) {
+                        thirtyMinSessionCount++;
+                        document.getElementById("completed-sessions").textContent = thirtyMinSessionCount;
+                    }
+
+                    // auto-record if it's a finished work session
+                    if (isWorkSession) {
+                        recordSessions(true);
+                    }
+
+                    isWorkSession = !isWorkSession;
+                    pendingFocusRating = 0;
+                    updateStarDisplay(0);
+                    sessionLabelEl.textContent = isWorkSession ? "Work Session" : "Break Session";
+                    startTimer();
+                } else {
+                    updateDisplay(diff);
+                }
+            }
+        }, 250);
+    }
+
+    function updateDisplay(ms) {
+        if (ms < 0) ms = 0;
+        let totalSec = Math.floor(ms / 1000);
+        let min = Math.floor(totalSec / 60);
+        let sec = totalSec % 60;
+
+        let minStr = (min < 10 ? "0" : "") + min;
+        let secStr = (sec < 10 ? "0" : "") + sec;
         document.getElementById("timer-display").textContent = `${minStr}:${secStr}`;
     }
 
     function logSession(isWork, duration) {
-        // We store StartTime and EndTime for each session.
-        // For simplicity, let’s approximate StartTime as "now - duration"
-        const endTime = new Date();
-        const msDuration = duration * 60000;
-        const startTime = new Date(endTime - msDuration);
+        const endTimeStamp = new Date();
+        const msDuration = duration * 60_000;
+        const startTimeStamp = new Date(endTimeStamp - msDuration);
 
         sessionLogs.push({
-            startTime: startTime.toISOString(),
-            endTime: endTime.toISOString(),
+            startTime: startTimeStamp.toISOString(),
+            endTime: endTimeStamp.toISOString(),
             durationMinutes: duration,
-            sessionType: isWork ? "Work" : "Rest"
+            sessionType: isWork ? "Work" : "Rest",
+            focusRating: pendingFocusRating,
+            sessionCategory: selectedCategory || ""
         });
+
+        if (isWork && pendingFocusRating > 0) {
+            document.getElementById("self-intensity").textContent = `${pendingFocusRating} / 5`;
+        }
     }
 
-    async function recordSessions() {
-        // Post the sessionLogs to our backend to store in CSV and email
+    // ================== RECORDING ==================
+    async function recordSessions(isAuto) {
+        // If paused, finalize partial usage first
+        if (isPaused) {
+            // do partial usage logic
+            clearInterval(timerInterval);
+            timerInterval = null;
+
+            let fullMs = isWorkSession ? (workDuration * 60_000) : (restDuration * 60_000);
+            let diff = endTime - Date.now();
+            if (diff < 0) diff = 0;
+            let usedMs = fullMs - diff;
+            if (usedMs < 0) usedMs = 0;
+
+            let usedMin = Math.round(usedMs / 60_000);
+            // log partial usage
+            logSession(isWorkSession, usedMin);
+            // *Do not* resetTimer() yet, so sessionLogs isn't cleared
+        }
+
+        // If still no logs, just exit quietly (no popup)
         if (sessionLogs.length === 0) {
-            alert("No sessions to record.");
             return;
         }
 
         try {
-            const response = await fetch("/Timer/RecordSession", {
+            const resp = await fetch("/Timer/RecordSession", {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(sessionLogs)
             });
-
-            if (response.ok) {
-                alert("Sessions recorded successfully, and email sent if configured.");
-                // Clear the session logs after a successful record
+            if (resp.ok) {
+                if (!isAuto) {
+                    alert("Sessions recorded successfully.");
+                }
+                // Now that they've been recorded, we can clear
                 sessionLogs = [];
+                // Now reset the timer state
+                resetTimer();
+
+                // Refresh improvement data + chart
+                await fetchVolumeIncrease();
+                await loadDailyTotalsChart();
             } else {
-                const err = await response.text();
-                alert("Error recording sessions: " + err);
+                const err = await resp.text();
+                if (!isAuto) {
+                    alert("Error recording sessions: " + err);
+                }
             }
         } catch (error) {
-            alert("Error sending request to server: " + error);
+            if (!isAuto) {
+                alert("Error sending request: " + error);
+            }
+        }
+    }
+
+    function saveFocusRating() {
+        if (pendingFocusRating > 0) {
+            document.getElementById("self-intensity").textContent =
+                `${pendingFocusRating} / 5 (pending)`;
+            alert("Focus rating saved for the next Work session.");
+        }
+    }
+
+    function updateStarDisplay(rating) {
+        stars.forEach(star => {
+            let val = parseInt(star.getAttribute("data-value"));
+            star.style.color = (val <= rating) ? "gold" : "gray";
+        });
+    }
+
+    // ============== CHART & IMPROVEMENT ==============
+    async function loadDailyTotalsChart() {
+        try {
+            const resp = await fetch("/Timer/GetDailyTotals");
+            if (!resp.ok) return;
+            const data = await resp.json();
+            // data is e.g. [ { date: '2025-05-24T00:00:00', totalMinutes: 30 }, ... ] for 7 days
+
+            const labels = data.map(d => d.date.substring(0, 10));
+            const values = data.map(d => d.totalMinutes);
+
+            const ctx = document.getElementById('myChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Daily Work (min)',
+                        data: values,
+                        backgroundColor: 'rgba(75, 192, 192, 0.6)'
+                    }]
+                },
+                options: {
+                    scales: {
+                        y: { beginAtZero: true }
+                    }
+                }
+            });
+        }
+        catch (err) {
+            console.error("Error loading chart data:", err);
+        }
+    }
+
+    async function fetchVolumeIncrease() {
+        try {
+            const resp = await fetch("/Timer/GetDailyImprovement");
+            if (!resp.ok) return;
+            const data = await resp.json();
+
+            document.getElementById("improvement-percentage").textContent =
+                `${data.improvementPercent.toFixed(1)}%`;
+
+            document.getElementById("today-job-volume").textContent =
+                data.todayJobVolume;
+            document.getElementById("prev-job-volume").textContent =
+                data.previousDayJobVolume;
+            document.getElementById("today-personal-volume").textContent =
+                data.todayPersonalVolume;
+            document.getElementById("prev-personal-volume").textContent =
+                data.previousDayPersonalVolume;
+
+        } catch (err) {
+            console.error("Failed to fetch daily improvement:", err);
         }
     }
 </script>
