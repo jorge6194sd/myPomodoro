@@ -1,4 +1,4 @@
-using YourProject.Data;
+using WebApplication1.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -23,6 +23,7 @@ app.UseRouting();
 app.UseAuthorization();
 
 app.MapControllerRoute(
-    name: "default",
-    pattern: "{controller=Timer}/{action=Index}/{id?}");
+  name: "default",
+  pattern: "{controller=Timer}/{action=Index}/{id?}"
+);
 app.Run();

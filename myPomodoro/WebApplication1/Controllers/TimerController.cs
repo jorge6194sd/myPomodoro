@@ -1,11 +1,10 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using System.Net;
 using System.Net.Mail;
-using YourProject.Data;      // <-- for TimerSessionRepository
-using WebApplication1.Models; // <-- for TimerSession
-using System.Text;           // (if you still want email logic using StringBuilder)
+using System.Text;
+using WebApplication1.Data;      // for TimerSessionRepository
+using WebApplication1.Models; // for TimerSession
 using System.Globalization;
-using System.Threading.Tasks;
 
 namespace YourProject.Controllers
 {
@@ -14,10 +13,7 @@ namespace YourProject.Controllers
         private readonly TimerSessionRepository _repo;
         private readonly IConfiguration _config;
 
-        // If you need IWebHostEnvironment for other things, you can keep it.
-        public TimerController(
-            TimerSessionRepository repo,
-            IConfiguration config)
+        public TimerController(TimerSessionRepository repo, IConfiguration config)
         {
             _repo = repo;
             _config = config;
@@ -36,37 +32,54 @@ namespace YourProject.Controllers
             if (sessions == null || sessions.Count == 0)
                 return BadRequest("No sessions provided.");
 
-            // Insert into SQL instead of writing CSV
+            // Insert into SQL
             await _repo.InsertSessionsAsync(sessions);
-
-            // Optional: email logic, if your _config has EmailSettings
-            try
-            {
-                var shouldSendEmail = _config.GetValue<bool>("EmailSettings:SendEmail");
-                if (shouldSendEmail)
-                {
-                    // Build an email body from the sessions
-                    var sb = new StringBuilder();
-                    foreach (var s in sessions)
-                    {
-                        sb.AppendLine($"{s.StartTime}, {s.EndTime}, {s.DurationMinutes}, {s.SessionType}, {s.FocusRating}, {s.SessionCategory}");
-                    }
-                    SendEmail(sb.ToString());
-                }
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, $"Failed to send email. Error: {ex.Message}");
-            }
-
             return Ok("Session recorded successfully (SQL).");
         }
 
-        // GET: Calculate volumes & improvement from DB, not from CSV
+        // GET: Return LAST 7 DAYS (Work sessions) in daily totals for the chart
+        [HttpGet]
+        public async Task<IActionResult> GetDailyTotals()
+        {
+            var allSessions = await _repo.GetAllAsync();
+            var today = DateTime.Now.Date;
+            var sevenDaysAgo = today.AddDays(-6);
+            // This includes today as day 0, plus the 6 preceding days
+
+            // 1) Filter only Work sessions in the last 7 days
+            var grouped = allSessions
+                .Where(s => s.SessionType.Equals("Work", StringComparison.OrdinalIgnoreCase)
+                            && s.EndTime.Date >= sevenDaysAgo)
+                .GroupBy(s => s.EndTime.Date)
+                .Select(g => new {
+                    Date = g.Key,
+                    TotalMinutes = g.Sum(x => x.DurationMinutes)
+                })
+                .ToList();
+
+            // 2) Fill in missing days from sevenDaysAgo..today
+            var result = new List<object>();
+            for (int i = 0; i < 7; i++)
+            {
+                var day = sevenDaysAgo.AddDays(i);
+                var found = grouped.FirstOrDefault(d => d.Date == day);
+                double minutes = found?.TotalMinutes ?? 0;
+                result.Add(new
+                {
+                    Date = day,
+                    TotalMinutes = minutes
+                });
+            }
+            // result will have 7 entries, one for each day
+            // e.g. [ { date: '2025-05-23T00:00:00', totalMinutes: 30 }, ... ]
+
+            return Ok(result);
+        }
+
+        // GET: Calculate volumes & improvement from DB
         [HttpGet]
         public async Task<IActionResult> GetDailyImprovement()
         {
-            // We'll pull all sessions from DB
             var allSessions = await _repo.GetAllAsync();
             if (allSessions == null || !allSessions.Any())
             {
@@ -82,7 +95,6 @@ namespace YourProject.Controllers
                 });
             }
 
-            // Group "Work" sessions by date
             var dailyWorkTotals = new Dictionary<DateTime, double>();
             var dailyJobTotals = new Dictionary<DateTime, double>();
             var dailyPersonalTotals = new Dictionary<DateTime, double>();
@@ -97,20 +109,20 @@ namespace YourProject.Controllers
                     dailyWorkTotals[localDate] = 0;
                 dailyWorkTotals[localDate] += session.DurationMinutes;
 
-                // job vs. personal
-                if (session.SessionCategory != null &&
-                    session.SessionCategory.Equals("Job", StringComparison.OrdinalIgnoreCase))
+                if (!string.IsNullOrEmpty(session.SessionCategory))
                 {
-                    if (!dailyJobTotals.ContainsKey(localDate))
-                        dailyJobTotals[localDate] = 0;
-                    dailyJobTotals[localDate] += session.DurationMinutes;
-                }
-                else if (session.SessionCategory != null &&
-                         session.SessionCategory.Equals("Personal", StringComparison.OrdinalIgnoreCase))
-                {
-                    if (!dailyPersonalTotals.ContainsKey(localDate))
-                        dailyPersonalTotals[localDate] = 0;
-                    dailyPersonalTotals[localDate] += session.DurationMinutes;
+                    if (session.SessionCategory.Equals("Job", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (!dailyJobTotals.ContainsKey(localDate))
+                            dailyJobTotals[localDate] = 0;
+                        dailyJobTotals[localDate] += session.DurationMinutes;
+                    }
+                    else if (session.SessionCategory.Equals("Personal", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (!dailyPersonalTotals.ContainsKey(localDate))
+                            dailyPersonalTotals[localDate] = 0;
+                        dailyPersonalTotals[localDate] += session.DurationMinutes;
+                    }
                 }
             }
 
@@ -119,7 +131,7 @@ namespace YourProject.Controllers
             dailyJobTotals.TryGetValue(today, out double todayJobVolume);
             dailyPersonalTotals.TryGetValue(today, out double todayPersonalVolume);
 
-            // Find the most recent day before today
+            // find the day before today
             var previousDay = dailyWorkTotals.Keys
                 .Where(d => d < today)
                 .OrderByDescending(d => d)
@@ -151,38 +163,11 @@ namespace YourProject.Controllers
                 improvementPercent,
                 todayVolume = todayTotal,
                 previousDayVolume = previousDayTotal,
-
                 todayJobVolume,
                 previousDayJobVolume,
                 todayPersonalVolume,
                 previousDayPersonalVolume
             });
-        }
-
-        private void SendEmail(string content)
-        {
-            var smtpHost = _config.GetValue<string>("EmailSettings:SmtpHost");
-            var smtpPort = _config.GetValue<int>("EmailSettings:SmtpPort");
-            var smtpUser = _config.GetValue<string>("EmailSettings:SmtpUser");
-            var smtpPass = _config.GetValue<string>("EmailSettings:SmtpPass");
-            var fromEmail = _config.GetValue<string>("EmailSettings:FromEmail");
-            var toEmail = _config.GetValue<string>("EmailSettings:ToEmail");
-
-            using (var client = new SmtpClient(smtpHost, smtpPort))
-            {
-                client.EnableSsl = true;
-                client.Credentials = new NetworkCredential(smtpUser, smtpPass);
-
-                var mailMessage = new MailMessage
-                {
-                    From = new MailAddress(fromEmail),
-                    Subject = "Completed Timer Sessions",
-                    Body = "Here are the completed timer sessions:\n\n" + content
-                };
-                mailMessage.To.Add(new MailAddress(toEmail));
-
-                client.Send(mailMessage);
-            }
         }
     }
 }

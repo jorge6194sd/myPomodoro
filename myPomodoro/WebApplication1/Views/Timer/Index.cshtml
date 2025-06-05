@@ -5,8 +5,6 @@
 <!-- Bootstrap CSS -->
 <link rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" />
-
-<!-- Optional: Font Awesome for star icons -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
 
 <div class="modal fade show d-block" tabindex="-1" role="dialog"
@@ -14,36 +12,25 @@
     <div class="modal-dialog modal-fullscreen" role="document">
         <div class="modal-content text-center" style="background-color: #f7f7f7;">
 
-            <!-- [1] Modal Header -->
+            <!-- [1] Header -->
             <div class="modal-header">
                 <h1 class="modal-title w-100" style="font-size: 2rem;">Pomodoro-Style Timer</h1>
             </div>
 
-            <!-- [2] Modal Body -->
+            <!-- [2] Body -->
             <div class="modal-body" style="height: 75vh;">
-                <div class="row w-100">
-
-                    <!-- TOP: Normal Work vs. SOS Buttons -->
-                    <div class="col-12 mb-3">
-                        <div class="d-flex justify-content-center gap-2">
-                            <!-- Normal Work Session Button -->
-                            <button id="normalWorkBtn" class="btn btn-success">Work Session</button>
-                            <!-- SOS Button -->
-                            <button id="sosBtn" class="btn btn-danger">SOS</button>
-                        </div>
-                    </div>
-
-                </div> <!-- row -->
-
                 <div class="row w-100 h-100">
+
                     <!-- Left Column (Timer) -->
                     <div class="col-md-8 d-flex flex-column align-items-center justify-content-center">
+
                         <!-- Timer Display -->
                         <div id="timer-display" style="font-size: 5rem; margin-bottom: 1rem;">00:00</div>
-                        <!-- Session Label (Work / Break) -->
-                        <div id="session-label" style="font-size: 1.25rem; margin-bottom: 1rem;"></div>
 
-                        <!-- Controls for session durations -->
+                        <!-- Session Label (Work / Break) -->
+                        <div id="session-label" style="font-size: 1.25rem; margin-bottom: 1rem;">Work Session</div>
+
+                        <!-- Duration controls -->
                         <div class="mb-3">
                             <label for="workDuration" class="form-label">Work Session (minutes):</label>
                             <input type="number" id="workDuration" class="form-control"
@@ -55,11 +42,11 @@
                                    style="width:200px; margin: 0 auto;" value="5" />
                         </div>
 
-                        <!-- Category Toggle (dropdown) for "Job" or "Personal" -->
+                        <!-- Category (Job/Personal) -->
                         <div class="mb-3">
                             <label for="taskCategory" class="form-label">Select Task Category:</label>
                             <select id="taskCategory" class="form-select" style="width:200px; margin:0 auto;">
-                                <option value="">-- Choose One --</option>
+                                <option value="">(None)</option>
                                 <option value="Job">Job</option>
                                 <option value="Personal">Personal</option>
                             </select>
@@ -67,9 +54,8 @@
 
                         <!-- Buttons -->
                         <div class="d-flex flex-row gap-3">
-                            <button id="start-btn" class="btn btn-success btn-lg" disabled>Start</button>
+                            <button id="start-btn" class="btn btn-success btn-lg">Start</button>
                             <button id="pause-btn" class="btn btn-warning btn-lg">Pause</button>
-                            <button id="stop-and-record-btn" class="btn btn-info btn-lg">Stop &amp; Record</button>
                             <button id="reset-btn" class="btn btn-danger btn-lg">Reset</button>
                             <button id="record-btn" class="btn btn-primary btn-lg">Record</button>
                         </div>
@@ -81,9 +67,9 @@
                         </div>
                     </div>
 
-                    <!-- Right Column (Focus Metrics) -->
-                    <div class="col-md-4 d-flex align-items-center">
-                        <div class="card w-100">
+                    <!-- Right Column: Focus Metrics + Weekly Chart -->
+                    <div class="col-md-4 d-flex flex-column align-items-center">
+                        <div class="card w-100" style="margin-bottom: 1rem;">
                             <div class="card-body">
                                 <h5 class="card-title">Focus Metrics</h5>
 
@@ -91,7 +77,6 @@
                                     <strong>Today's Improvement:</strong>
                                     <span id="improvement-percentage" style="font-size: 1.25rem;">+0%</span>
                                 </p>
-
                                 <p>
                                     <strong>Today's Job Volume (min):</strong>
                                     <span id="today-job-volume" style="font-size: 1.25rem;">0</span>
@@ -100,7 +85,6 @@
                                     <strong>Last Work Day's Job Volume (min):</strong>
                                     <span id="prev-job-volume" style="font-size: 1.25rem;">0</span>
                                 </p>
-
                                 <p>
                                     <strong>Today's Personal Volume (min):</strong>
                                     <span id="today-personal-volume" style="font-size: 1.25rem;">0</span>
@@ -109,7 +93,6 @@
                                     <strong>Last Work Day's Personal Volume (min):</strong>
                                     <span id="prev-personal-volume" style="font-size: 1.25rem;">0</span>
                                 </p>
-
                                 <p>
                                     <strong>Focus Rating:</strong>
                                     <span id="self-intensity" style="font-size: 1.25rem;">N/A</span>
@@ -126,10 +109,17 @@
                                 <button id="saveRatingBtn" class="btn btn-secondary btn-sm">Save Rating</button>
                             </div>
                         </div>
+
+                        <!-- Last 7 Days Chart -->
+                        <div style="width: 90%;">
+                            <h5>Weekly Chart (Last 7 Days)</h5>
+                            <canvas id="myChart" width="300" height="300"></canvas>
+                        </div>
                     </div>
 
-                </div> <!-- row -->
+                </div>
             </div>
+
             <!-- Modal Footer -->
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"
@@ -141,23 +131,11 @@
     </div>
 </div>
 
-<!-- The Jiu Jitsu Scenario Popup (optional if you want the SOS flow) -->
-<div id="jiuJitsuModal" style="position: fixed; top: 20%; left: 50%; transform: translateX(-50%);
-     width: 400px; z-index: 9999; background-color: white; border: 2px solid #444; border-radius: 8px;
-     padding: 1rem; display: none;">
-    <h3>Jiu Jitsu Scenario</h3>
-    <div id="jjPosition" style="font-weight: bold;"></div>
-    <div id="jjMove" style="margin-top: 0.5rem; font-style: italic;"></div>
-    <div id="jjType" style="margin-top: 0.5rem;"></div>
-    <div id="jjDesc" style="margin-top: 1rem;"></div>
-    <button id="jjOkBtn" class="btn btn-primary" style="margin-top: 1rem;">OK</button>
-</div>
-
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="~/js/JiuJitsuScenarios.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <script>
-    // ==================== GLOBAL STATE (End-Time Approach) ====================
+    // ================== GLOBAL STATE ==================
     let timerInterval = null;
     let isPaused = false;
     let isWorkSession = true;
@@ -165,53 +143,43 @@
     let restDuration = 5;
     let thirtyMinSessionCount = 0;
 
-    // For end-time logic
-    let endTime = 0;         // the Date.now() + sessionMs
-    let timeRemaining = 0;   // leftover ms when paused
+    let endTime = 0;
+    let timeRemaining = 0;
 
     let sessionLogs = [];
     let pendingFocusRating = 0;
     let selectedCategory = "";
 
-    // references
     const sessionLabelEl = document.getElementById("session-label");
     const taskCategoryEl = document.getElementById("taskCategory");
     const startBtn = document.getElementById("start-btn");
     const pauseBtn = document.getElementById("pause-btn");
-    const stopRecordBtn = document.getElementById("stop-and-record-btn");
     const resetBtn = document.getElementById("reset-btn");
     const recordBtn = document.getElementById("record-btn");
     const saveRatingBtn = document.getElementById("saveRatingBtn");
     const stars = document.querySelectorAll("#starRating i");
 
-    const normalWorkBtn = document.getElementById("normalWorkBtn");
-    const sosBtn = document.getElementById("sosBtn");
+    // On page load, fetch improvement stats & chart data
+    window.onload = () => {
+        fetchVolumeIncrease();
+        loadDailyTotalsChart();
+    };
 
-    const jiuJitsuModal = document.getElementById("jiuJitsuModal");
-    const jjPosition = document.getElementById("jjPosition");
-    const jjMove = document.getElementById("jjMove");
-    const jjType = document.getElementById("jjType");
-    const jjDesc = document.getElementById("jjDesc");
-    const jjOkBtn = document.getElementById("jjOkBtn");
-
-    // On page load
-    updateSessionLabel();
-    fetchVolumeIncrease();
-    checkCategorySelected();
-
-    // ===================== EVENT LISTENERS =====================
+    // Category dropdown
     taskCategoryEl.addEventListener("change", () => {
         selectedCategory = taskCategoryEl.value;
-        checkCategorySelected();
     });
 
+    // Timer buttons
     startBtn.addEventListener("click", startTimer);
     pauseBtn.addEventListener("click", pauseTimer);
-    stopRecordBtn.addEventListener("click", stopAndRecord);
     resetBtn.addEventListener("click", resetTimer);
-    recordBtn.addEventListener("click", () => recordSessions(false));
-    saveRatingBtn.addEventListener("click", saveFocusRating);
 
+    // Recording
+    recordBtn.addEventListener("click", () => recordSessions(false));
+
+    // Star rating
+    saveRatingBtn.addEventListener("click", saveFocusRating);
     stars.forEach(star => {
         star.addEventListener("click", () => {
             const val = parseInt(star.getAttribute("data-value"));
@@ -220,174 +188,89 @@
         });
     });
 
-    normalWorkBtn.addEventListener("click", () => {
-        isWorkSession = true;
-        pendingFocusRating = 0;
-        updateStarDisplay(0);
-        updateSessionLabel();
-    });
-
-    // Jiu Jitsu scenario for SOS
-    sosBtn.addEventListener("click", showJiuJitsuScenario);
-    jjOkBtn.addEventListener("click", () => {
-        jiuJitsuModal.style.display = "none";
-        startSOS();
-    });
-
-    // ================ Real-Time Approach ================
-
-    // (A) Normal Start Timer
+    // ================== TIMER LOGIC ==================
     function startTimer() {
-        // If paused, unpause
         if (isPaused) {
+            // Unpause
             isPaused = false;
-            // new endTime = now + leftover
             endTime = Date.now() + timeRemaining;
             startInterval();
             return;
         }
-
-        // Otherwise, we are starting fresh
+        // Start fresh
         workDuration = parseInt(document.getElementById("workDuration").value) || 30;
         restDuration = parseInt(document.getElementById("restDuration").value) || 5;
 
         if (timerInterval) clearInterval(timerInterval);
 
-        // If it's a work session
         if (isWorkSession) {
-            let ms = workDuration * 60 * 1000;
-            endTime = Date.now() + ms;
+            endTime = Date.now() + (workDuration * 60_000);
         } else {
-            let ms = restDuration * 60 * 1000;
-            endTime = Date.now() + ms;
+            endTime = Date.now() + (restDuration * 60_000);
         }
-
         startInterval();
-    }
-
-    // (B) Start the setInterval that checks the difference
-    function startInterval() {
-        timerInterval = setInterval(() => {
-            if (!isPaused) {
-                let diff = endTime - Date.now();
-                if (diff <= 0) {
-                    // time's up
-                    clearInterval(timerInterval);
-                    diff = 0;
-
-                    // log the finished session
-                    const minutes = isWorkSession
-                        ? parseInt(document.getElementById("workDuration").value)
-                        : parseInt(document.getElementById("restDuration").value);
-                    logSession(isWorkSession, minutes, pendingFocusRating);
-
-                    // If it was a 30-min work session
-                    if (isWorkSession && minutes === 30) {
-                        thirtyMinSessionCount++;
-                        document.getElementById("completed-sessions").innerText = thirtyMinSessionCount;
-                    }
-
-                    // If it was a work session, do record
-                    if (isWorkSession) {
-                        recordSessions(true);
-                    }
-
-                    // switch session type
-                    isWorkSession = !isWorkSession;
-                    pendingFocusRating = 0;
-                    updateStarDisplay(0);
-                    updateSessionLabel();
-
-                    // auto-start next session
-                    startTimer();
-                } else {
-                    // still time left
-                    updateDisplay(diff);
-                }
-            }
-        }, 250); // quarter-second updates are fine
     }
 
     function pauseTimer() {
         if (!timerInterval) return;
         isPaused = true;
-        let diff = endTime - Date.now();
-        if (diff < 0) diff = 0;
-        timeRemaining = diff;
+        const diff = endTime - Date.now();
+        timeRemaining = (diff > 0) ? diff : 0;
         clearInterval(timerInterval);
         timerInterval = null;
     }
 
-    // ================ STOP & RECORD: End Work Early ================
-    function stopAndRecord() {
-        if (!isWorkSession || !timerInterval) {
-            alert("Stop & Record only applies during a Work session in progress.");
-            return;
-        }
-        clearInterval(timerInterval);
+    function resetTimer() {
+        if (timerInterval) clearInterval(timerInterval);
         timerInterval = null;
-
-        let diff = endTime - Date.now();
-        if (diff < 0) diff = 0;
-        // how many ms have we actually used?
-        let totalMs = (parseInt(document.getElementById("workDuration").value) || 30) * 60 * 1000;
-        let usedMs = totalMs - diff;
-        if (usedMs < 0) usedMs = 0;
-        let usedMin = Math.round(usedMs / 60000);
-
-        logSession(true, usedMin, pendingFocusRating);
-
-        // if it was a 30-min session
-        if (parseInt(document.getElementById("workDuration").value) === 30) {
-            thirtyMinSessionCount++;
-            document.getElementById("completed-sessions").innerText = thirtyMinSessionCount;
-        }
-
-        recordSessions(true);
-
-        // reset to zero
         endTime = 0;
         timeRemaining = 0;
         isPaused = false;
         isWorkSession = true;
+        pendingFocusRating = 0;
+        sessionLogs = [];
+        thirtyMinSessionCount = 0;
+
         updateDisplay(0);
         updateStarDisplay(0);
-        updateSessionLabel();
+        sessionLabelEl.textContent = "Work Session";
+        document.getElementById("completed-sessions").textContent = "0";
     }
 
-    // (C) SOS approach: always 5 min
-    function showJiuJitsuScenario() {
-        if (!jiuJitsuScenarios || jiuJitsuScenarios.length === 0) {
-            alert("No Jiu Jitsu scenarios found. Please add more!");
-            startSOS();
-            return;
-        }
-        const randIndex = Math.floor(Math.random() * jiuJitsuScenarios.length);
-        const scenario = jiuJitsuScenarios[randIndex];
-        jjPosition.textContent = `Position: ${scenario.position}`;
-        jjMove.textContent = `Move: ${scenario.move}`;
-        jjType.textContent = `Type: ${scenario.type}`;
-        jjDesc.textContent = scenario.description;
-        jiuJitsuModal.style.display = "block";
+    function startInterval() {
+        timerInterval = setInterval(() => {
+            if (!isPaused) {
+                let diff = endTime - Date.now();
+                if (diff <= 0) {
+                    clearInterval(timerInterval);
+                    diff = 0;
+
+                    // session ended
+                    let usedMin = isWorkSession ? workDuration : restDuration;
+                    logSession(isWorkSession, usedMin);
+
+                    if (isWorkSession && usedMin === 30) {
+                        thirtyMinSessionCount++;
+                        document.getElementById("completed-sessions").textContent = thirtyMinSessionCount;
+                    }
+
+                    // auto-record if it's a finished work session
+                    if (isWorkSession) {
+                        recordSessions(true);
+                    }
+
+                    isWorkSession = !isWorkSession;
+                    pendingFocusRating = 0;
+                    updateStarDisplay(0);
+                    sessionLabelEl.textContent = isWorkSession ? "Work Session" : "Break Session";
+                    startTimer();
+                } else {
+                    updateDisplay(diff);
+                }
+            }
+        }, 250);
     }
 
-    function startSOS() {
-        // 5-min work session
-        isWorkSession = true;
-        isPaused = false;
-        pendingFocusRating = 0;
-        selectedCategory = "SOS";
-
-        // Clear old interval if any
-        if (timerInterval) clearInterval(timerInterval);
-
-        const ms = 5 * 60 * 1000;
-        endTime = Date.now() + ms;
-        startInterval();
-        updateSessionLabel();
-    }
-
-    // ================ updateDisplay: show mm:ss from ms ================
     function updateDisplay(ms) {
         if (ms < 0) ms = 0;
         let totalSec = Math.floor(ms / 1000);
@@ -399,78 +282,70 @@
         document.getElementById("timer-display").textContent = `${minStr}:${secStr}`;
     }
 
-    // Reset Timer entirely
-    function resetTimer() {
-        if (timerInterval) clearInterval(timerInterval);
-        timerInterval = null;
-        endTime = 0;
-        timeRemaining = 0;
-        isPaused = false;
-        isWorkSession = true;
-        updateDisplay(0);
-        pendingFocusRating = 0;
-        updateStarDisplay(0);
-        updateSessionLabel();
-    }
-
-    // update session label, etc.
-    function updateSessionLabel() {
-        if (isWorkSession && selectedCategory !== "SOS") {
-            selectedCategory = taskCategoryEl.value;
-        }
-        sessionLabelEl.textContent = isWorkSession ? "Work Session" : "Break Session";
-        checkCategorySelected();
-    }
-
-    function checkCategorySelected() {
-        if (isWorkSession && selectedCategory !== "SOS" && !selectedCategory) {
-            startBtn.disabled = true;
-        } else {
-            startBtn.disabled = false;
-        }
-    }
-
-    // log the session
-    function logSession(isWork, duration, focusRating) {
+    function logSession(isWork, duration) {
         const endTimeStamp = new Date();
         const msDuration = duration * 60_000;
         const startTimeStamp = new Date(endTimeStamp - msDuration);
 
-        let cat = (isWork) ? selectedCategory : "";
         sessionLogs.push({
             startTime: startTimeStamp.toISOString(),
             endTime: endTimeStamp.toISOString(),
             durationMinutes: duration,
             sessionType: isWork ? "Work" : "Rest",
-            focusRating: focusRating,
-            sessionCategory: cat
+            focusRating: pendingFocusRating,
+            sessionCategory: selectedCategory || ""
         });
 
-        if (isWork && focusRating > 0) {
-            document.getElementById("self-intensity").textContent = `${focusRating} / 5`;
+        if (isWork && pendingFocusRating > 0) {
+            document.getElementById("self-intensity").textContent = `${pendingFocusRating} / 5`;
         }
     }
 
-    // record to CSV
+    // ================== RECORDING ==================
     async function recordSessions(isAuto) {
+        // If paused, finalize partial usage first
+        if (isPaused) {
+            // do partial usage logic
+            clearInterval(timerInterval);
+            timerInterval = null;
+
+            let fullMs = isWorkSession ? (workDuration * 60_000) : (restDuration * 60_000);
+            let diff = endTime - Date.now();
+            if (diff < 0) diff = 0;
+            let usedMs = fullMs - diff;
+            if (usedMs < 0) usedMs = 0;
+
+            let usedMin = Math.round(usedMs / 60_000);
+            // log partial usage
+            logSession(isWorkSession, usedMin);
+            // *Do not* resetTimer() yet, so sessionLogs isn't cleared
+        }
+
+        // If still no logs, just exit quietly (no popup)
         if (sessionLogs.length === 0) {
-            if (!isAuto) alert("No sessions to record.");
             return;
         }
+
         try {
-            const response = await fetch("/Timer/RecordSession", {
+            const resp = await fetch("/Timer/RecordSession", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(sessionLogs)
             });
-            if (response.ok) {
+            if (resp.ok) {
                 if (!isAuto) {
-                    alert("Sessions recorded successfully (Email sent if configured).");
+                    alert("Sessions recorded successfully.");
                 }
+                // Now that they've been recorded, we can clear
                 sessionLogs = [];
+                // Now reset the timer state
+                resetTimer();
+
+                // Refresh improvement data + chart
                 await fetchVolumeIncrease();
+                await loadDailyTotalsChart();
             } else {
-                const err = await response.text();
+                const err = await resp.text();
                 if (!isAuto) {
                     alert("Error recording sessions: " + err);
                 }
@@ -497,7 +372,40 @@
         });
     }
 
-    // fetch improvement stats
+    // ============== CHART & IMPROVEMENT ==============
+    async function loadDailyTotalsChart() {
+        try {
+            const resp = await fetch("/Timer/GetDailyTotals");
+            if (!resp.ok) return;
+            const data = await resp.json();
+            // data is e.g. [ { date: '2025-05-24T00:00:00', totalMinutes: 30 }, ... ] for 7 days
+
+            const labels = data.map(d => d.date.substring(0, 10));
+            const values = data.map(d => d.totalMinutes);
+
+            const ctx = document.getElementById('myChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Daily Work (min)',
+                        data: values,
+                        backgroundColor: 'rgba(75, 192, 192, 0.6)'
+                    }]
+                },
+                options: {
+                    scales: {
+                        y: { beginAtZero: true }
+                    }
+                }
+            });
+        }
+        catch (err) {
+            console.error("Error loading chart data:", err);
+        }
+    }
+
     async function fetchVolumeIncrease() {
         try {
             const resp = await fetch("/Timer/GetDailyImprovement");
