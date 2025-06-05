@@ -6,7 +6,9 @@ using WebApplication1.Data;      // for TimerSessionRepository
 using WebApplication1.Models; // for TimerSession
 using System.Globalization;
 
-namespace YourProject.Controllers
+
+
+namespace WebApplication1.Controllers
 {
     public class TimerController : Controller
     {
