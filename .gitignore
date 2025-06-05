@@ -1,0 +1,9 @@
+.vs/
+bin/
+*.user
+*.suo
+*.vscode/
+obj/
+*.AssemblyInfo.cs
+*.AssemblyInfoInputs.cache
+App_Data/
