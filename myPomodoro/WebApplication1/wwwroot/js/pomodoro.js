@@ -21,6 +21,7 @@
     const recordBtn = document.getElementById("record-btn");
     const saveRatingBtn = document.getElementById("saveRatingBtn");
     const stars = document.querySelectorAll("#starRating i");
+    const completedSessionsEl = document.getElementById("completed-sessions");
 
     // On page load, fetch improvement stats & chart data
     window.onload = () => {
@@ -97,7 +98,9 @@
         updateDisplay(0);
         updateStarDisplay(0);
         sessionLabelEl.textContent = "Work Session";
-        document.getElementById("completed-sessions").textContent = "0";
+        completedSessionsEl.textContent = "0";
+        completedSessionsEl.style.width = "0%";
+        completedSessionsEl.setAttribute("aria-valuenow", "0");
     }
 
     function startInterval() {
@@ -114,7 +117,10 @@
 
                     if (isWorkSession && usedMin === 30) {
                         thirtyMinSessionCount++;
-                        document.getElementById("completed-sessions").textContent = thirtyMinSessionCount;
+                        completedSessionsEl.textContent = thirtyMinSessionCount;
+                        const progress = Math.min(thirtyMinSessionCount, 8);
+                        completedSessionsEl.style.width = `${progress * 12.5}%`;
+                        completedSessionsEl.setAttribute("aria-valuenow", progress.toString());
                     }
 
                     // auto-record if it's a finished work session
@@ -230,8 +236,9 @@
 
     function updateStarDisplay(rating) {
         stars.forEach(star => {
-            let val = parseInt(star.getAttribute("data-value"));
-            star.style.color = (val <= rating) ? "gold" : "gray";
+            const val = parseInt(star.getAttribute("data-value"));
+            star.classList.toggle("text-warning", val <= rating);
+            star.classList.toggle("text-muted", val > rating);
         });
     }
 

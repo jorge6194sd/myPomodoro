@@ -20,3 +20,47 @@ html {
 body {
   margin-bottom: 60px;
 }
+
+/* Timer page styles */
+.timer-modal {
+  background-color: rgba(0, 0, 0, 0.8);
+}
+
+.timer-content {
+  background-color: #f7f7f7;
+}
+
+.timer-body {
+  height: 75vh;
+}
+
+.timer-display {
+  font-size: 5rem;
+  margin-bottom: 1rem;
+}
+
+#session-label {
+  font-size: 1.25rem;
+  margin-bottom: 1rem;
+}
+
+.timer-input {
+  width: 200px;
+  margin: 0 auto;
+}
+
+#completed-sessions {
+  width: 0%;
+  transition: width 0.3s;
+}
+
+#starRating i {
+  cursor: pointer;
+  font-size: 1.25rem;
+}
+
+@media (max-width: 767.98px) {
+  .timer-display {
+    font-size: 3rem;
+  }
+}
