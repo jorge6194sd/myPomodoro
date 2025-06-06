@@ -1,10 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using System.Net;
-using System.Net.Mail;
-using System.Text;
 using WebApplication1.Data;      // for TimerSessionRepository
 using WebApplication1.Models; // for TimerSession
-using System.Globalization;
 
 
 

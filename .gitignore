@@ -7,3 +7,10 @@ obj/
 *.AssemblyInfo.cs
 *.AssemblyInfoInputs.cache
 App_Data/
+
+# Ignore user-specific project files
+*.csproj.user
+myPomodoro/WebApplication1/Properties/PublishProfiles/
+myPomodoro/WebApplication1/Properties/ServiceDependencies/
+
+myPomodoro/WebApplication1/appsettings.Development.json

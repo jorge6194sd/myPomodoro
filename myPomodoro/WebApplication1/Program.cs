@@ -4,7 +4,9 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
-builder.Services.AddScoped<TimerSessionRepository>();
+// Retrieve connection string so it can be supplied via environment variables
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? string.Empty;
+builder.Services.AddScoped<TimerSessionRepository>(_ => new TimerSessionRepository(connectionString));
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
