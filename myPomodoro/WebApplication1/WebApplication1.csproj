@@ -9,6 +9,11 @@
   <ItemGroup>
     <Folder Include="Views\NewFolder1\" />
     <Folder Include="Views\NewFolder\NewFolder\" />
+    <Folder Include="Data\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="Data/TimerSessionRepository.cs" />
   </ItemGroup>
 
   <ItemGroup>
