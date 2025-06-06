@@ -7,4 +7,6 @@ obj/
 *.AssemblyInfo.cs
 *.AssemblyInfoInputs.cache
 App_Data/
+
 myPomodoro/WebApplication1/appsettings.Development.json
+
