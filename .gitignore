@@ -7,3 +7,10 @@ obj/
 *.AssemblyInfo.cs
 *.AssemblyInfoInputs.cache
 App_Data/
+
+# Ignore user-specific project files
+*.csproj.user
+
+# Ignore publish profile and service dependency directories
+Properties/PublishProfiles/
+Properties/ServiceDependencies/
